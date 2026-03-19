@@ -1,0 +1,20 @@
+[project]
+name = "turnstile"
+version = "0.1.0"
+description = "Multi-turn adversarial red-teaming for agentic AI systems"
+authors = ["Julian Quick <quectojoules@gmail.com>"]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+run = "python -m turnstile.main"
+serve = "python -m vllm.entrypoints.openai.api_server --model meta-llama/Llama-3.1-8B-Instruct --max-model-len 4096 --gpu-memory-utilization 0.90"
+
+[dependencies]
+python = "3.11.*"
+
+[pypi-dependencies]
+torch = {version = ">=2.2", extras = ["cu124"]}
+vllm = ">=0.6"
+openai = ">=1.0"
+vastai = ">=0.2.8, <0.3"

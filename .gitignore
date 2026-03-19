@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.pixi/
+results/
+*.json
+!pixi.toml
+.DS_Store
