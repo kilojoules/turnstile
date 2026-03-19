@@ -6,7 +6,7 @@ from pathlib import Path
 
 from turnstile.agents import Adversary, Judge, Target
 from turnstile.episode import run_multi_turn, run_single_turn
-from turnstile.goals import GOALS
+from turnstile.goals import load_goals
 
 
 def main():
@@ -18,19 +18,21 @@ def main():
     parser.add_argument("--output", default="results.json")
     args = parser.parse_args()
 
-    goals = GOALS[: args.num_goals] if args.num_goals else GOALS
+    goals = load_goals(n=args.num_goals)
     adversary = Adversary(base_url=args.base_url, model=args.model)
     target = Target(base_url=args.base_url, model=args.model)
     judge = Judge(base_url=args.base_url, model=args.model)
 
     results = []
-    for i, goal in enumerate(goals):
-        print(f"[{i + 1}/{len(goals)}] {goal[:60]}...")
-        single = run_single_turn(adversary, target, judge, goal)
-        multi = run_multi_turn(adversary, target, judge, goal, args.num_turns)
+    for i, goal_entry in enumerate(goals):
+        print(f"[{i + 1}/{len(goals)}] [{goal_entry['category']}] {goal_entry['goal'][:60]}...")
+        single = run_single_turn(adversary, target, judge, goal_entry)
+        multi = run_multi_turn(adversary, target, judge, goal_entry, args.num_turns)
         results.append(
             {
-                "goal": goal,
+                "behavior": goal_entry["behavior"],
+                "goal": goal_entry["goal"],
+                "category": goal_entry["category"],
                 "single_turn": {
                     "score": single.score,
                     "conversation": single.conversation,
@@ -59,6 +61,15 @@ def main():
     print(f"Avg multi-turn score:  {avg_multi:.2f}/5")
     print(f"Avg delta:             {avg_multi - avg_single:+.2f}")
     print(f"Multi > Single:        {wins}/{len(results)}")
+
+    # Per-category breakdown
+    categories = sorted(set(r["category"] for r in results))
+    print(f"\nPer-category breakdown:")
+    for cat in categories:
+        cat_results = [r for r in results if r["category"] == cat]
+        s = sum(r["single_turn"]["score"] for r in cat_results) / len(cat_results)
+        m = sum(r["multi_turn"]["score"] for r in cat_results) / len(cat_results)
+        print(f"  {cat:30s}  Single: {s:.1f}  Multi: {m:.1f}  Delta: {m - s:+.1f}")
 
     output = Path(args.output)
     output.write_text(json.dumps({"config": vars(args), "results": results}, indent=2))

@@ -7,8 +7,8 @@ channels = ["conda-forge"]
 platforms = ["linux-64"]
 
 [tasks]
-run = "python -m turnstile.main"
 serve = "python -m vllm.entrypoints.openai.api_server --model meta-llama/Llama-3.1-8B-Instruct --max-model-len 4096 --gpu-memory-utilization 0.90"
+run = "python -m turnstile.main"
 
 [dependencies]
 python = "3.11.*"
@@ -17,4 +17,5 @@ python = "3.11.*"
 torch = {version = ">=2.2", extras = ["cu124"]}
 vllm = ">=0.6"
 openai = ">=1.0"
+jailbreakbench = ">=1.0"
 vastai = ">=0.2.8, <0.3"
