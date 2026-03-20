@@ -285,9 +285,6 @@ def judge_conversations(conversations, goal_entries, round_num, cfg):
             win_indices.append(i)
 
     unload_model(model, tok)
-
-    # Save round data
-    _save_round_data(conversations, verdicts, round_num, cfg)
     return win_indices, verdicts
 
 
@@ -469,7 +466,7 @@ def log_metrics(round_num, n_candidates, win_indices, verdicts,
 # Main loop
 # ---------------------------------------------------------------------------
 
-def main(cfg: ExperimentConfig | None = None):
+def main(cfg: ExperimentConfig | None = None, together_api_key: str = ""):
     if cfg is None:
         cfg = ExperimentConfig()
 
@@ -488,6 +485,15 @@ def main(cfg: ExperimentConfig | None = None):
     victim_zoo = CheckpointZoo.from_checkpoints_dir(
         checkpoint_dir, role="victim", max_size=cfg.zoo.max_size
     )
+
+    # Initialize dual judge if Together API key is provided
+    dual_judge = None
+    if together_api_key:
+        from turnstile.judge import DualJudge
+        dual_judge = DualJudge(together_api_key)
+        print("Judge: dual (Llama Guard + Llama-3.1-70B via Together API)")
+    else:
+        print("Judge: Llama Guard only (no Together API key)")
 
     print("=== STARTING TURNSTILE LOOP ===")
     print(f"Experiment: {cfg.name}")
@@ -512,9 +518,31 @@ def main(cfg: ExperimentConfig | None = None):
             continue
 
         # Phase 2: Judge
-        win_indices, verdicts = judge_conversations(
-            conversations, goal_entries, r, cfg
-        )
+        print(f"\n[Round {r}] >> PHASE 2: JUDGING CONVERSATIONS")
+        if dual_judge is not None:
+            win_indices, verdict_objs = dual_judge.judge_conversations(
+                conversations, goal_entries, cfg.num_turns,
+            )
+            # Convert DualJudge verdicts to dicts for saving/metrics
+            verdicts = [
+                {
+                    "unsafe": v.unsafe,
+                    "guard_unsafe": v.guard_unsafe,
+                    "together_unsafe": v.together_unsafe,
+                    "turn_of_breach": v.turn_of_breach,
+                    "goal": v.goal,
+                    "behavior": v.behavior,
+                    "category": v.category,
+                    "disagreement": v.disagreement,
+                }
+                for v in verdict_objs
+            ]
+        else:
+            win_indices, verdicts = judge_conversations(
+                conversations, goal_entries, r, cfg
+            )
+
+        _save_round_data(conversations, verdicts, r, cfg)
 
         # Phase 3: Train adversary on successful conversations
         if win_indices:
@@ -534,5 +562,11 @@ def main(cfg: ExperimentConfig | None = None):
 
 
 if __name__ == "__main__":
-    cfg = ExperimentConfig.from_cli()
-    main(cfg)
+    import argparse as _ap
+    # Parse --together-key before ExperimentConfig.from_cli
+    _pre = _ap.ArgumentParser(add_help=False)
+    _pre.add_argument("--together-key", type=str, default="",
+                       help="Together API key for dual judge (70B confirmation)")
+    _known, _rest = _pre.parse_known_args()
+    cfg = ExperimentConfig.from_cli(_rest)
+    main(cfg, together_api_key=_known.together_key)
