@@ -38,6 +38,8 @@ td { color: var(--text); }
 .msg-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.25rem; }
 .msg-adv .msg-label { color: var(--red); }
 .msg-vic .msg-label { color: var(--accent); }
+.msg-breach { background: rgba(239,68,68,0.15) !important; border-left-color: var(--red) !important; }
+.msg-post-breach { opacity: 0.5; }
 .msg-content { color: var(--text); white-space: pre-wrap; }
 .turn-divider { text-align: center; color: var(--muted); font-size: 0.75rem; margin: 0.75rem 0; opacity: 0.5; }
 .finding { padding: 1rem 1.25rem; margin: 1rem 0; border-radius: 8px; border-left: 4px solid; }
@@ -89,8 +91,8 @@ ASR climbs from 13% to 37% by round 3, then oscillates in the 20&ndash;37% range
 <p>The adversary's most effective strategy is "fictional scenario" framing (57% of successful attacks). This works in 2 steps: (1) establish a benign-looking fictional/hypothetical/research context at turn 0, (2) the victim engages with the framing and begins providing relevant content at turn 1. Llama Guard correctly flags this as unsafe. This is not a failure of multi-turn strategy &mdash; it's the adversary efficiently exploiting the <em>minimal</em> context needed to bypass safety.</p>
 
 <h3>Multi-turn depth improves over rounds</h3>
-<img src="images/breach_depth_by_round.png" alt="Breach depth by round">
-<p>Early rounds (0&ndash;1) have mostly turn 0&ndash;1 breaches. By round 3+, the adversary increasingly uses turn 2+ strategies. Round 7 achieves 11 wins with 6 at turn 2+ and zero at turn 0 &mdash; the adversary learned that deeper multi-turn strategies are more reliable than single-shot framing.</p>
+<img src="images/breach_turn_by_round.png" alt="Breach turn distribution by round">
+<p>Each row shows one training round. Turn 0 breaches (red) dominate early rounds but disappear by round 7&ndash;8. Turn 2+ breaches (green, blue, purple) grow steadily. Round 7 achieves 11 wins with 6 at turn 2+ and zero at turn 0 &mdash; the adversary learned that deeper multi-turn strategies are more reliable than single-shot framing.</p>
 
 <h2>Category Vulnerability</h2>
 <img src="images/category_vulnerability.png" alt="Category vulnerability breakdown">
@@ -118,6 +120,13 @@ ASR climbs from 13% to 37% by round 3, then oscillates in the 20&ndash;37% range
 <li><strong>Pivot</strong> (turn 2+): The adversary steers the conversation toward the actual goal. By this point, the victim is invested in the fictional scenario and provides increasingly specific harmful content.</li>
 </ol>
 
+<h2>How Jailbreaks Are Determined</h2>
+<div class="card">
+<p><strong>Judge: Llama Guard 3-1B</strong> (frozen, no fine-tuning). For each conversation, the full multi-turn transcript is passed through Llama Guard's safety classification template. If the output contains "unsafe", the conversation is flagged as a jailbreak.</p>
+<p><strong>Turn-of-breach detection:</strong> For conversations flagged unsafe, we identify <em>when</em> the breach occurred by judging cumulative prefixes. We feed turns [0&ndash;0], [0&ndash;1], [0&ndash;2], etc. to Llama Guard and find the first prefix judged unsafe. This is the turn where the victim first began complying with the harmful goal.</p>
+<p>In the example conversations below, the breach turn is highlighted in red. Messages after the breach are faded &mdash; the attack has already succeeded.</p>
+</div>
+
 <h2>Example Conversations</h2>
 <p>Full multi-turn conversations showing different attack strategies and breach depths. Click to expand.</p>
 
@@ -126,9 +135,10 @@ ASR climbs from 13% to 37% by round 3, then oscillates in the 20&ndash;37% range
 <h2>Mechanistic Detection</h2>
 
 <h3>Per-turn probe (Phase 3)</h3>
-<p>A linear probe on the victim's residual stream at the middle layer achieves <strong>AUC 0.95</strong> for per-turn jailbreak detection. The victim's internal state clearly encodes whether compliance is occurring, independently at each turn.</p>
+<p>A linear probe on the victim's residual stream at the middle layer achieves <strong>AUC 0.974 +/- 0.007</strong> for per-turn jailbreak detection (10-fold stratified cross-validation, 1500 turn-level samples). The victim's internal state clearly encodes whether compliance is occurring, independently at each turn.</p>
+<p>An SAE with 16,384 features (4x expansion) is trained on the hidden states. A logistic probe on the top-100 discriminative SAE features achieves <strong>AUC 0.774 +/- 0.024</strong> &mdash; lower than raw hidden states but using sparse, interpretable features.</p>
 
-<img src="images/breach_and_probes.png" alt="Probe comparison">
+<img src="images/probe_cv_scatter.png" alt="10-fold CV probe AUCs">
 
 <h3>Temporal SAE (Phase 4)</h3>
 <p>A Temporal SAE (Bhalla et al., ICLR 2026) was adapted from token-level to turn-level consistency. The Matryoshka feature partition (20% high-level, 80% low-level) with BatchTopK(k=20) activation and bidirectional InfoNCE contrastive loss was trained on 1,200 turn pairs.</p>
@@ -189,11 +199,25 @@ fetch('images/example_conversations.json')
         const msg = conv[j];
         const isAdv = msg.role === 'user';
         const turnNum = Math.floor(j / 2);
+        const isBreachTurn = isUnsafe && tob !== null && tob !== undefined && turnNum === tob;
+        const isPostBreach = isUnsafe && tob !== null && tob !== undefined && turnNum > tob;
+
         if (j > 0 && j % 2 === 0) {
-          html += `<div class="turn-divider">&mdash; turn ${turnNum} &mdash;</div>`;
+          if (isBreachTurn) {
+            html += `<div class="turn-divider" style="color:var(--red);opacity:1;font-weight:700">&darr; BREACH &mdash; turn ${turnNum} (Llama Guard flags cumulative transcript as unsafe) &darr;</div>`;
+          } else {
+            html += `<div class="turn-divider">&mdash; turn ${turnNum} &mdash;</div>`;
+          }
         }
-        html += `<div class="msg ${isAdv ? 'msg-adv' : 'msg-vic'}">`;
-        html += `<div class="msg-label">${isAdv ? 'Adversary' : 'Victim'} (turn ${turnNum})</div>`;
+
+        let msgClass = isAdv ? 'msg-adv' : 'msg-vic';
+        if (isBreachTurn && !isAdv) msgClass += ' msg-breach';
+        if (isPostBreach) msgClass += ' msg-post-breach';
+
+        html += `<div class="msg ${msgClass}">`;
+        html += `<div class="msg-label">${isAdv ? 'Adversary' : 'Victim'} (turn ${turnNum})`;
+        if (isBreachTurn && !isAdv) html += ' <span style="color:var(--red);font-size:0.7rem">UNSAFE</span>';
+        html += `</div>`;
         html += `<div class="msg-content">${escapeHtml(msg.content)}</div>`;
         html += '</div>';
       }

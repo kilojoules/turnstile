@@ -1,0 +1,10 @@
+{
+  "Raw hidden state (4096-dim)": {
+    "mean": 0.9736,
+    "std": 0.007
+  },
+  "Top-100 SAE features": {
+    "mean": 0.7744,
+    "std": 0.0235
+  }
+}
