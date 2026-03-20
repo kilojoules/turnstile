@@ -1,7 +1,21 @@
 __pycache__/
 *.pyc
 .pixi/
-results/
-*.json
-!pixi.toml
 .DS_Store
+
+# Large binary artifacts
+adapters/
+experiments/*/adapters/
+experiments/*/checkpoints/
+experiments/*/hidden_states/
+experiments/*/data/
+results/
+
+# Logs
+*.log
+
+# PDF papers
+*.pdf
+
+# Seed data (small, keep)
+!data/

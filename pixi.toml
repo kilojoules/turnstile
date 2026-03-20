@@ -7,8 +7,25 @@ channels = ["conda-forge"]
 platforms = ["linux-64"]
 
 [tasks]
+# Phase 1 (MVP): prompt-based baseline via vLLM
 serve = "python -m vllm.entrypoints.openai.api_server --model meta-llama/Llama-3.1-8B-Instruct --max-model-len 4096 --gpu-memory-utilization 0.90"
 run = "python -m turnstile.main"
+
+# Bootstrap: generate seed conversations with 8B, train initial 1B LoRA
+bootstrap = "python -m turnstile.bootstrap"
+
+# Phase 2: Self-play training loop (frozen victim)
+loop = "python -m turnstile.loop"
+
+# Phase 3: Per-turn probe baseline
+probe = "python -m turnstile.probe"
+
+# Phase 4: Temporal SAE
+temporal-sae = "python -m turnstile.temporal_sae"
+temporal-analysis = "python -m turnstile.temporal_analysis"
+
+# Phase 5: Stealth multi-turn adversary
+stealth = "python -m turnstile.stealth_loop"
 
 [dependencies]
 python = "3.11.*"
@@ -18,4 +35,12 @@ torch = {version = ">=2.2", extras = ["cu124"]}
 vllm = ">=0.6"
 openai = ">=1.0"
 jailbreakbench = ">=1.0"
+transformers = ">=4.40"
+peft = ">=0.10"
+bitsandbytes = ">=0.43"
+accelerate = ">=0.30"
+scikit-learn = "*"
+matplotlib = "*"
+seaborn = "*"
+numpy = "*"
 vastai = ">=0.2.8, <0.3"
