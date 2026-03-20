@@ -194,10 +194,7 @@ fetch('images/example_conversations.json')
         }
         html += `<div class="msg ${isAdv ? 'msg-adv' : 'msg-vic'}">`;
         html += `<div class="msg-label">${isAdv ? 'Adversary' : 'Victim'} (turn ${turnNum})</div>`;
-        // Truncate very long messages
-        let content = msg.content;
-        if (content.length > 600) content = content.substring(0, 600) + '...';
-        html += `<div class="msg-content">${escapeHtml(content)}</div>`;
+        html += `<div class="msg-content">${escapeHtml(msg.content)}</div>`;
         html += '</div>';
       }
       html += '</div></div>';
