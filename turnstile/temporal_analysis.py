@@ -142,16 +142,16 @@ def fit_probes(features_by_conv, labels, n_high):
         2. all_mean: all features, mean-pooled across turns
         3. high_final: high-level features at the final turn only
 
-    Uses 80/20 train/test split. Reports test AUC.
+    Uses stratified k-fold CV (up to 10 folds). Reports mean +/- std AUC.
 
-    Returns dict of {probe_name: test_AUC}.
+    Returns dict of {probe_name: {"mean": float, "std": float, "k": int}}.
     """
     from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import roc_auc_score
-    from sklearn.model_selection import train_test_split
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
 
     labels_np = np.array(labels, dtype=int)
-    if labels_np.sum() < 2 or (1 - labels_np).sum() < 2:
+    min_class = min(int(labels_np.sum()), int((1 - labels_np).sum()))
+    if min_class < 2:
         print("  [Skip] Not enough class diversity for probes")
         return {}
 
@@ -165,28 +165,19 @@ def fit_probes(features_by_conv, labels, n_high):
         [f[-1, :n_high] for f in features_by_conv]
     ).numpy()
 
-    # 80/20 stratified split
-    split_idx = np.arange(len(labels_np))
-    try:
-        train_idx, test_idx = train_test_split(
-            split_idx, test_size=0.2, random_state=42, stratify=labels_np
-        )
-    except ValueError:
-        # Not enough samples in a class for stratified split
-        print("  [Skip] Not enough samples per class for train/test split")
-        return {}
+    n_splits = min(10, min_class)
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
     results = {}
     for name, x in [("high_mean", high_mean), ("all_mean", all_mean),
                      ("high_final", high_final)]:
-        x_train, x_test = x[train_idx], x[test_idx]
-        y_train, y_test = labels_np[train_idx], labels_np[test_idx]
-
         clf = LogisticRegression(max_iter=2000, C=1.0, solver="lbfgs")
-        clf.fit(x_train, y_train)
-        probs_test = clf.predict_proba(x_test)[:, 1]
-        auc = roc_auc_score(y_test, probs_test)
-        results[name] = round(auc, 4)
+        scores = cross_val_score(clf, x, labels_np, cv=cv, scoring="roc_auc")
+        results[name] = {
+            "mean": round(float(scores.mean()), 4),
+            "std": round(float(scores.std()), 4),
+            "k": n_splits,
+        }
 
     return results
 
@@ -223,8 +214,9 @@ def analyze(hidden_states_dir, tsae_dir, output_dir=None):
     # Probes
     print("  Fitting probes...")
     probe_aucs = fit_probes(features_by_conv, labels, n_high)
-    for name, auc in probe_aucs.items():
-        print(f"    {name:15s} AUC: {auc:.4f}")
+    for name, result in probe_aucs.items():
+        print(f"    {name:15s} AUC: {result['mean']:.4f} "
+              f"+/- {result['std']:.4f} ({result['k']}-fold CV)")
 
     # Feature trajectories: mean high-level activation per turn
     unsafe_trajs = [

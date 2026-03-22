@@ -48,8 +48,8 @@ from turnstile.model_utils import (
 )
 from turnstile.loop import (
     generate_conversations, judge_conversations, checkpoint_adapters,
-    deduplicate_conversations, save_hidden_states,
-    _exp_dir, _ensure_dirs, _adapter_exists,
+    deduplicate_conversations, save_hidden_states, _save_round_data,
+    _exp_dir, _ensure_dirs, _adapter_exists, train_victim,
 )
 from turnstile.temporal_sae import TemporalSAE, normalize_activations
 from turnstile.zoo import CheckpointZoo
@@ -128,15 +128,27 @@ class TemporalJailbreakProbe:
 
         from sklearn.linear_model import LogisticRegression
         from sklearn.metrics import roc_auc_score
+        from sklearn.model_selection import StratifiedKFold, cross_val_score
 
         clf = LogisticRegression(max_iter=2000, C=1.0, solver="lbfgs")
-        clf.fit(conv_features, conv_labels)
-        auc = roc_auc_score(
-            conv_labels, clf.predict_proba(conv_features)[:, 1]
-        )
-        print(f"  [TemporalProbe] Loaded from {tsae_dir}, "
-              f"train AUC: {auc:.4f}")
 
+        # Report CV AUC for diagnostics
+        min_class = min(int(conv_labels.sum()), int((1 - conv_labels).sum()))
+        if min_class >= 2:
+            n_splits = min(10, min_class)
+            cv = StratifiedKFold(n_splits=n_splits, shuffle=True,
+                                 random_state=42)
+            scores = cross_val_score(clf, conv_features, conv_labels,
+                                     cv=cv, scoring="roc_auc")
+            print(f"  [TemporalProbe] Loaded from {tsae_dir}, "
+                  f"AUC: {scores.mean():.4f} +/- {scores.std():.4f} "
+                  f"({n_splits}-fold CV)")
+        else:
+            print(f"  [TemporalProbe] Loaded from {tsae_dir}, "
+                  f"too few samples for CV (min_class={min_class})")
+
+        # Fit on all data for actual scoring use
+        clf.fit(conv_features, conv_labels)
         return cls(tsae, scale, n_high, clf.coef_[0], clf.intercept_[0])
 
     @classmethod
@@ -156,20 +168,27 @@ class TemporalJailbreakProbe:
         conv_labels = np.array(labels_list, dtype=int)
 
         from sklearn.linear_model import LogisticRegression
-        from sklearn.metrics import roc_auc_score
+        from sklearn.model_selection import StratifiedKFold, cross_val_score
 
         if conv_labels.sum() < 5 or (1 - conv_labels).sum() < 5:
             print("  [Probe] Not enough data to retrain")
             return None
 
         clf = LogisticRegression(max_iter=2000, C=1.0, solver="lbfgs")
-        clf.fit(conv_features, conv_labels)
-        auc = roc_auc_score(
-            conv_labels, clf.predict_proba(conv_features)[:, 1]
-        )
-        print(f"  [Probe] Retrained on {len(conv_labels)} convs, "
-              f"AUC: {auc:.4f}")
 
+        # Report CV AUC for diagnostics
+        min_class = min(int(conv_labels.sum()), int((1 - conv_labels).sum()))
+        n_splits = min(10, min_class)
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True,
+                             random_state=42)
+        scores = cross_val_score(clf, conv_features, conv_labels,
+                                 cv=cv, scoring="roc_auc")
+        print(f"  [Probe] Retrained on {len(conv_labels)} convs, "
+              f"AUC: {scores.mean():.4f} +/- {scores.std():.4f} "
+              f"({n_splits}-fold CV)")
+
+        # Fit on all data for actual scoring use
+        clf.fit(conv_features, conv_labels)
         return cls(tsae, scale, n_high, clf.coef_[0], clf.intercept_[0])
 
     def score(self, per_turn_hidden_states):
@@ -394,6 +413,9 @@ def main(cfg=None, stealth_cfg=None):
             conversations, goal_entries, r, cfg
         )
 
+        # Save round data (conversations + verdicts)
+        _save_round_data(conversations, verdicts, r, cfg)
+
         # Phase 2.5: Temporal probe scoring
         probe_scores = probe.score_batch(hidden_states_list)
         print(f"   Probe scores: mean={probe_scores.mean():.3f}, "
@@ -404,6 +426,8 @@ def main(cfg=None, stealth_cfg=None):
         accum_labels.extend([v["unsafe"] for v in verdicts])
 
         # Phase 3: Stealth-weighted training
+        # Clear CUDA cache to avoid fragmentation before LoRA backward pass
+        torch.cuda.empty_cache()
         if win_indices:
             train_adversary_stealth(
                 win_indices, adv_messages_list, probe_scores,
@@ -411,6 +435,11 @@ def main(cfg=None, stealth_cfg=None):
             )
         else:
             print("   No successful attacks.")
+
+        # Phase 3b: Harden victim
+        if cfg.harden_victim:
+            torch.cuda.empty_cache()
+            train_victim(conversations, verdicts, win_indices, r, cfg)
 
         # Phase 4: Checkpoint
         checkpoint_adapters(r, cfg)
@@ -452,7 +481,7 @@ def parse_args(args=None):
     parser.add_argument("--candidates", type=int, default=30)
     parser.add_argument("--num-turns", type=int, default=5)
     parser.add_argument("--adversary-model", type=str,
-                        default="meta-llama/Llama-3.2-1B-Instruct")
+                        default="meta-llama/Llama-3.2-3B-Instruct")
     parser.add_argument("--victim-model", type=str,
                         default="meta-llama/Llama-3.1-8B-Instruct")
     parser.add_argument("--mode", type=str, default="buffered",
@@ -467,6 +496,8 @@ def parse_args(args=None):
     parser.add_argument("--stealth-threshold", type=float, default=0.4)
     parser.add_argument("--stealth-alpha", type=float, default=3.0)
     parser.add_argument("--retrain-probe-every", type=int, default=5)
+    parser.add_argument("--harden-victim", action="store_true",
+                        help="Enable victim hardening (default: frozen)")
 
     parsed = parser.parse_args(args)
 
@@ -479,7 +510,7 @@ def parse_args(args=None):
         num_turns=parsed.num_turns,
         rounds=parsed.rounds,
         candidates_per_round=parsed.candidates,
-        harden_victim=False,
+        harden_victim=parsed.harden_victim,
         training=TrainingConfig(
             mode=parsed.mode,
             buffer_size=parsed.buffer_size,

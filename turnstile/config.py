@@ -43,7 +43,7 @@ class ExperimentConfig:
     output_dir: str = "experiments"
 
     # Models
-    adversary_model: str = "meta-llama/Llama-3.2-1B-Instruct"
+    adversary_model: str = "meta-llama/Llama-3.2-3B-Instruct"
     victim_model: str = "meta-llama/Llama-3.1-8B-Instruct"
     judge_model: str = "meta-llama/Llama-Guard-3-1B"
 
@@ -62,6 +62,10 @@ class ExperimentConfig:
     # Paths (adversary)
     adapter_path: str = "adapters"
     data_path: str = "data"
+
+    # Paths (victim hardening)
+    victim_adapter_path: str = "victim_adapters"
+    victim_data_path: str = "victim_data"
 
     # Deduplication (Jaccard on concatenated adversary turns)
     dedup_similarity_threshold: float = 0.5
@@ -96,7 +100,7 @@ class ExperimentConfig:
         parser.add_argument("--zoo-interval", type=int, default=1)
         parser.add_argument("--zoo-max-size", type=int, default=50)
         parser.add_argument("--adversary-model", type=str,
-                            default="meta-llama/Llama-3.2-1B-Instruct")
+                            default="meta-llama/Llama-3.2-3B-Instruct")
         parser.add_argument("--victim-model", type=str,
                             default="meta-llama/Llama-3.1-8B-Instruct")
         parser.add_argument("--harden-victim", action="store_true",

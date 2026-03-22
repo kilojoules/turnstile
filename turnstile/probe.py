@@ -100,13 +100,27 @@ class PerTurnProbe:
             features = sae.encode(x_norm).numpy()
 
         from sklearn.linear_model import LogisticRegression
-        from sklearn.metrics import roc_auc_score
+        from sklearn.model_selection import StratifiedKFold, cross_val_score
 
         clf = LogisticRegression(max_iter=2000, C=1.0, solver="lbfgs")
-        clf.fit(features, labels)
-        auc = roc_auc_score(labels, clf.predict_proba(features)[:, 1])
-        print(f"  [PerTurnProbe] Loaded from {probe_dir}, train AUC: {auc:.4f}")
 
+        # Report CV AUC for diagnostics
+        min_class = min(int(labels.sum()), int((1 - labels).sum()))
+        if min_class >= 2:
+            n_splits = min(10, min_class)
+            cv = StratifiedKFold(n_splits=n_splits, shuffle=True,
+                                 random_state=42)
+            scores = cross_val_score(clf, features, labels,
+                                     cv=cv, scoring="roc_auc")
+            print(f"  [PerTurnProbe] Loaded from {probe_dir}, "
+                  f"AUC: {scores.mean():.4f} +/- {scores.std():.4f} "
+                  f"({n_splits}-fold CV)")
+        else:
+            print(f"  [PerTurnProbe] Loaded from {probe_dir}, "
+                  f"too few samples for CV")
+
+        # Fit on all data for actual scoring use
+        clf.fit(features, labels)
         return cls(sae, scale, clf.coef_[0], clf.intercept_[0])
 
     def score_turn(self, hidden_state):
@@ -203,35 +217,30 @@ def train_sae(hidden_states_dir, output_dir, expansion=4, l1_coeff=5.0,
 
     print(f"  SAE + activations saved to {output_dir}")
 
-    # Fit probe and report AUC (80/20 train/test split)
+    # Fit probe and report AUC (stratified k-fold CV)
     with torch.no_grad():
         x_encoded = sae.encode(x_norm).numpy()
     labels_np = labels.numpy().astype(int)
 
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import roc_auc_score
-    from sklearn.model_selection import train_test_split
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
 
-    split_idx = np.arange(len(labels_np))
-    try:
-        train_idx, test_idx = train_test_split(
-            split_idx, test_size=0.2, random_state=42, stratify=labels_np
-        )
-    except ValueError:
-        # Not enough samples per class for stratified split; fall back to
-        # train-only AUC with a warning
-        print("  [Warning] Not enough samples per class for train/test split")
+    min_class = min(int(labels_np.sum()), int((1 - labels_np).sum()))
+    if min_class < 2:
+        print("  [Warning] Not enough samples per class for CV")
         clf = LogisticRegression(max_iter=2000, C=1.0, solver="lbfgs")
         clf.fit(x_encoded, labels_np)
         auc = roc_auc_score(labels_np, clf.predict_proba(x_encoded)[:, 1])
-        print(f"  Per-turn probe AUC (train, no split): {auc:.4f}")
+        print(f"  Per-turn probe AUC (train, no CV): {auc:.4f}")
         return sae, scale
 
+    n_splits = min(10, min_class)
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     clf = LogisticRegression(max_iter=2000, C=1.0, solver="lbfgs")
-    clf.fit(x_encoded[train_idx], labels_np[train_idx])
-    probs_test = clf.predict_proba(x_encoded[test_idx])[:, 1]
-    auc = roc_auc_score(labels_np[test_idx], probs_test)
-    print(f"  Per-turn probe AUC (test): {auc:.4f}")
+    scores = cross_val_score(clf, x_encoded, labels_np, cv=cv, scoring="roc_auc")
+    print(f"  Per-turn probe AUC ({n_splits}-fold CV): "
+          f"{scores.mean():.4f} +/- {scores.std():.4f}")
 
     return sae, scale
 

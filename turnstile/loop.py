@@ -49,6 +49,9 @@ def _ensure_dirs(cfg: ExperimentConfig):
     for subdir in [cfg.data_path, cfg.adapter_path, "checkpoints", "rounds",
                    "hidden_states"]:
         os.makedirs(os.path.join(exp, subdir), exist_ok=True)
+    if cfg.harden_victim:
+        for subdir in [cfg.victim_data_path, cfg.victim_adapter_path]:
+            os.makedirs(os.path.join(exp, subdir), exist_ok=True)
 
 
 def _adapter_exists(path: str) -> bool:
@@ -189,9 +192,18 @@ def generate_conversations(round_num, cfg, goals, victim_zoo):
 
     adv_model, adv_tok = load_model(cfg.adversary_model, adapter_path=use_adapter)
 
-    # Victim: frozen (no adapter in frozen-victim mode)
-    print(f"   Loading Victim (frozen): {cfg.victim_model}")
-    vic_model, vic_tok = load_model(cfg.victim_model)
+    # Victim: load with adapter if hardening, otherwise frozen
+    victim_adapter = None
+    if cfg.harden_victim:
+        victim_adapter_dir = os.path.join(exp, cfg.victim_adapter_path)
+        if _adapter_exists(victim_adapter_dir):
+            victim_adapter = victim_adapter_dir
+            print(f"   Loading Hardened Victim with adapter from {victim_adapter}")
+        else:
+            print(f"   Loading Victim (no adapter yet): {cfg.victim_model}")
+    else:
+        print(f"   Loading Victim (frozen): {cfg.victim_model}")
+    vic_model, vic_tok = load_model(cfg.victim_model, adapter_path=victim_adapter)
 
     conversations = []
     adv_messages_list = []
@@ -385,11 +397,117 @@ def train_adversary(win_indices, adv_messages_list, round_num, cfg):
 
 
 # ---------------------------------------------------------------------------
+# Phase 3b: Victim hardening
+# ---------------------------------------------------------------------------
+
+def build_victim_training_data(conversations, verdicts, cfg):
+    """Build victim training data from failed attacks and safe prefixes.
+
+    Strategy:
+    - Failed attacks (unsafe=False): full conversation as-is. All assistant
+      turns are refusals — exactly what we want to reinforce.
+    - Safe prefixes from breached conversations: for each breach with
+      turn_of_breach=T > 0, extract turns 0..T-1 (where victim was still
+      refusing). Gives multi-turn refusal trajectories.
+    """
+    entries = []
+
+    for conv, verdict in zip(conversations, verdicts):
+        if not verdict["unsafe"]:
+            # Failed attack — full conversation is refusal data
+            entries.append({"messages": list(conv)})
+        else:
+            # Breached — extract safe prefix if breach wasn't on turn 0
+            tob = verdict.get("turn_of_breach")
+            if tob is not None and tob > 0:
+                # Safe prefix: turns 0..T-1 → conv[:2*T]
+                prefix = conv[:2 * tob]
+                if len(prefix) >= 2:  # need at least one user+assistant pair
+                    entries.append({"messages": list(prefix)})
+
+    return entries
+
+
+def train_victim(conversations, verdicts, win_indices, round_num, cfg):
+    """Phase 3b: Train victim on refusal data (victim hardening).
+
+    Uses the same train_lora_multiturn as adversary training. The
+    conversations are in victim perspective (user=adversary attacks,
+    assistant=victim responses), so loss falls on victim refusal tokens.
+    """
+    print(f"\n[Round {round_num}] >> PHASE 3b: VICTIM HARDENING")
+
+    exp = _exp_dir(cfg)
+    data_dir = os.path.join(exp, cfg.victim_data_path)
+    adapter_dir = os.path.join(exp, cfg.victim_adapter_path)
+
+    new_entries = build_victim_training_data(conversations, verdicts, cfg)
+
+    if not new_entries:
+        print("   No victim training data (all breached on turn 0). Skipping.")
+        return
+
+    # Deduplicate this round's refusals
+    new_entries = deduplicate_conversations(
+        new_entries, cfg.dedup_similarity_threshold
+    )
+
+    # Save this round's refusals
+    round_file = os.path.join(data_dir, f"round_{round_num}_refusals.jsonl")
+    with open(round_file, "w") as f:
+        for item in new_entries:
+            f.write(json.dumps(item) + "\n")
+
+    # Memory mode determines training set
+    if cfg.training.mode == "memoryless":
+        training_entries = new_entries
+        print(f"   [Memoryless] Training on {len(training_entries)} "
+              f"refusal conversations")
+    else:
+        main_train_file = os.path.join(data_dir, "train.jsonl")
+        existing = []
+        if os.path.exists(main_train_file):
+            with open(main_train_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        existing.append(json.loads(line))
+
+        combined = existing + new_entries
+        combined = deduplicate_conversations(
+            combined, cfg.dedup_similarity_threshold
+        )
+        if len(combined) > cfg.training.buffer_size:
+            combined = combined[-cfg.training.buffer_size:]
+        training_entries = combined
+        print(f"   [Buffered] Training set: {len(training_entries)} "
+              f"refusal conversations ({len(new_entries)} new this round)")
+
+    # Write training file
+    main_train_file = os.path.join(data_dir, "train.jsonl")
+    with open(main_train_file, "w") as f:
+        for item in training_entries:
+            f.write(json.dumps(item) + "\n")
+
+    train_lora_multiturn(
+        model_id=cfg.victim_model,
+        data_path=data_dir,
+        adapter_path=adapter_dir,
+        num_iters=cfg.training.lora_iters,
+        batch_size=cfg.training.batch_size,
+        lr=cfg.training.lora_lr,
+        lora_rank=cfg.training.lora.rank,
+        lora_alpha=cfg.training.lora.alpha,
+        target_modules=cfg.training.lora.target_modules,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Checkpoint + Metrics
 # ---------------------------------------------------------------------------
 
 def checkpoint_adapters(round_num, cfg):
-    """Save a snapshot of adversary adapter for this round."""
+    """Save a snapshot of adversary (and optionally victim) adapter for this round."""
     exp = _exp_dir(cfg)
     round_dir = os.path.join(exp, "checkpoints", f"round_{round_num}")
 
@@ -398,6 +516,13 @@ def checkpoint_adapters(round_num, cfg):
         adv_dst = os.path.join(round_dir, "adversary")
         shutil.copytree(adv_src, adv_dst, dirs_exist_ok=True)
         print(f"   Checkpoint: adversary -> {adv_dst}")
+
+    if cfg.harden_victim:
+        vic_src = os.path.join(exp, cfg.victim_adapter_path)
+        if _adapter_exists(vic_src):
+            vic_dst = os.path.join(round_dir, "victim")
+            shutil.copytree(vic_src, vic_dst, dirs_exist_ok=True)
+            print(f"   Checkpoint: victim -> {vic_dst}")
 
 
 def save_hidden_states(hidden_states_list, verdicts, round_num, cfg):
@@ -466,7 +591,8 @@ def log_metrics(round_num, n_candidates, win_indices, verdicts,
 # Main loop
 # ---------------------------------------------------------------------------
 
-def main(cfg: ExperimentConfig | None = None, together_api_key: str = ""):
+def main(cfg: ExperimentConfig | None = None, together_api_key: str = "",
+         train_on_guard_wins: bool = False):
     if cfg is None:
         cfg = ExperimentConfig()
 
@@ -547,8 +673,30 @@ def main(cfg: ExperimentConfig | None = None, together_api_key: str = ""):
         # Phase 3: Train adversary on successful conversations
         if win_indices:
             train_adversary(win_indices, adv_messages_list, r, cfg)
+        elif train_on_guard_wins and dual_judge is not None:
+            # Guard-fallback: dual judge gave 0 wins, but check if
+            # Llama Guard alone flagged some conversations. Use those
+            # for training (noisy but directional signal) while the
+            # reported ASR stays honest (dual judge = 0%).
+            guard_indices = [
+                i for i, v in enumerate(verdicts)
+                if v.get("guard_unsafe", False)
+            ]
+            if guard_indices:
+                print(f"   [Guard fallback] Dual judge: 0 wins. "
+                      f"Guard flagged {len(guard_indices)} — "
+                      f"training on guard-flagged conversations.")
+                train_adversary(guard_indices, adv_messages_list, r, cfg)
+            else:
+                print("   No successful attacks (guard also flagged 0). "
+                      "Adversary does not learn.")
         else:
             print("   No successful attacks. Adversary does not learn.")
+
+        # Phase 3b: Harden victim
+        if cfg.harden_victim:
+            torch.cuda.empty_cache()
+            train_victim(conversations, verdicts, win_indices, r, cfg)
 
         # Phase 4: Checkpoint + metrics + hidden states
         checkpoint_adapters(r, cfg)
@@ -563,10 +711,14 @@ def main(cfg: ExperimentConfig | None = None, together_api_key: str = ""):
 
 if __name__ == "__main__":
     import argparse as _ap
-    # Parse --together-key before ExperimentConfig.from_cli
+    # Parse --together-key and --train-on-guard-wins before ExperimentConfig.from_cli
     _pre = _ap.ArgumentParser(add_help=False)
     _pre.add_argument("--together-key", type=str, default="",
                        help="Together API key for dual judge (70B confirmation)")
+    _pre.add_argument("--train-on-guard-wins", action="store_true",
+                       help="When dual judge gives 0 wins, train on Guard-flagged "
+                            "conversations as noisy signal (ASR still uses dual judge)")
     _known, _rest = _pre.parse_known_args()
     cfg = ExperimentConfig.from_cli(_rest)
-    main(cfg, together_api_key=_known.together_key)
+    main(cfg, together_api_key=_known.together_key,
+         train_on_guard_wins=_known.train_on_guard_wins)
