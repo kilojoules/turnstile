@@ -27,14 +27,49 @@ _BNB_CONFIG = BitsAndBytesConfig(
 )
 
 
-def load_model(model_id, adapter_path=None):
+def _inject_chat_template(tokenizer, template_model_id):
+    """Copy the chat template from an Instruct model into a base tokenizer.
+
+    Base models (e.g. Llama-3.2-3B) ship without a chat template, so
+    apply_chat_template would fail. We borrow the template from the
+    corresponding Instruct variant so the base model can be trained on
+    and generate chat-formatted text.
+    """
+    if tokenizer.chat_template is not None:
+        return  # already has a template
+    instruct_tok = AutoTokenizer.from_pretrained(template_model_id)
+    if instruct_tok.chat_template is None:
+        raise ValueError(
+            f"Template model {template_model_id} has no chat template either"
+        )
+    tokenizer.chat_template = instruct_tok.chat_template
+    # Also copy any special tokens the instruct tokenizer defines that
+    # the base tokenizer might lack (e.g. <|eot_id|>).
+    for attr in ("eos_token", "bos_token"):
+        instruct_val = getattr(instruct_tok, attr, None)
+        base_val = getattr(tokenizer, attr, None)
+        if instruct_val and not base_val:
+            setattr(tokenizer, attr, instruct_val)
+    print(f"   [Chat template] Injected from {template_model_id}")
+
+
+def load_model(model_id, adapter_path=None, chat_template_model=None):
     """Load a model (4-bit quantized) and tokenizer, optionally with a PEFT adapter.
+
+    Args:
+        model_id: HuggingFace model identifier.
+        adapter_path: Path to a PEFT/LoRA adapter directory.
+        chat_template_model: If set, copy the chat template from this model
+            into the tokenizer. Used for base (non-Instruct) models.
 
     Returns (model, tokenizer).
     """
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+
+    if chat_template_model:
+        _inject_chat_template(tokenizer, chat_template_model)
 
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
@@ -163,6 +198,7 @@ def train_lora_multiturn(
     lora_rank=8,
     lora_alpha=16,
     target_modules=None,
+    chat_template_model=None,
 ):
     """LoRA fine-tune on multi-turn conversation data.
 
@@ -172,6 +208,10 @@ def train_lora_multiturn(
     Data format: JSONL with ``{"messages": [...]}`` where each conversation
     has system/user/assistant messages. Loss is computed on all "assistant"
     message tokens; everything else is masked with -100.
+
+    Args:
+        chat_template_model: If set, inject this model's chat template into
+            the tokenizer. Required for base (non-Instruct) models.
     """
     if target_modules is None:
         target_modules = ["q_proj", "v_proj"]
@@ -179,6 +219,9 @@ def train_lora_multiturn(
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+
+    if chat_template_model:
+        _inject_chat_template(tokenizer, chat_template_model)
 
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
@@ -205,18 +248,36 @@ def train_lora_multiturn(
         model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
-    # Load and preprocess training data
+    # Load and preprocess training data.
+    # Per-turn splitting: each assistant turn becomes its own training example
+    # with the conversation history up to that point as context and loss only
+    # on that single turn. A 5-turn conversation yields 5 training examples.
+    # This teaches "given history, generate best next attack" rather than
+    # "reproduce entire trajectory."
     train_file = os.path.join(data_path, "train.jsonl")
-    dataset = []  # list of (tokens, assistant_spans)
+    dataset = []  # list of (tokens, [(start, end)])
     with open(train_file) as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
             row = json.loads(line)
-            tokens, spans = _compute_assistant_spans(tokenizer, row["messages"])
-            if spans:
-                dataset.append((tokens, spans))
+            messages = row["messages"]
+
+            # Find assistant turn indices
+            asst_indices = [i for i, m in enumerate(messages)
+                            if m["role"] == "assistant"]
+
+            for ai in asst_indices:
+                # Prefix: everything up to and including this assistant turn
+                prefix_msgs = messages[:ai + 1]
+                tokens, spans = _compute_assistant_spans(
+                    tokenizer, prefix_msgs,
+                )
+                if spans:
+                    # Only keep the last span (this turn's assistant message)
+                    last_span = spans[-1]
+                    dataset.append((tokens, [last_span]))
 
     if not dataset:
         print("   [Warning] No training data — skipping.")

@@ -17,6 +17,16 @@ bootstrap = "python -m turnstile.bootstrap"
 # Phase 2: Self-play training loop (frozen victim)
 loop = "python -m turnstile.loop"
 
+# Base-model adversary: Llama-3.2-3B (no safety training) fine-tuned on verified wins
+extract-wins = "python scripts/extract_wins.py"
+base-loop = """python -m turnstile.loop \
+    --adversary-model meta-llama/Llama-3.2-3B \
+    --adversary-is-base \
+    --adversary-chat-template-model meta-llama/Llama-3.2-3B-Instruct"""
+
+# DPO: preference learning from wins vs losses (dense signal)
+dpo = "python -m turnstile.dpo"
+
 # Phase 3: Per-turn probe baseline
 probe = "python -m turnstile.probe"
 

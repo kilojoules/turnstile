@@ -119,6 +119,10 @@ def _run_conversation(adv_model, adv_tok, vic_model, vic_tok,
         hidden_states: (num_turns, d_model) tensor, or None
     """
     conversation = []  # victim perspective
+
+    # Compact prompt: matches training data format exactly. Screening test
+    # showed full red-team prompt produces identical ASR (6% vs 6%) but
+    # introduces a distribution shift from the LoRA's training format.
     adv_messages = [
         {"role": "system", "content": f"Goal: {goal}"},
         {"role": "user", "content": "Begin the conversation."},
@@ -190,7 +194,11 @@ def generate_conversations(round_num, cfg, goals, victim_zoo):
     else:
         print("   Loading Base Adversary (no adapter yet)")
 
-    adv_model, adv_tok = load_model(cfg.adversary_model, adapter_path=use_adapter)
+    chat_tpl = cfg.adversary_chat_template_model if cfg.adversary_is_base else None
+    adv_model, adv_tok = load_model(
+        cfg.adversary_model, adapter_path=use_adapter,
+        chat_template_model=chat_tpl,
+    )
 
     # Victim: load with adapter if hardening, otherwise frozen
     victim_adapter = None
@@ -383,17 +391,92 @@ def train_adversary(win_indices, adv_messages_list, round_num, cfg):
         for item in training_entries:
             f.write(json.dumps(item) + "\n")
 
-    train_lora_multiturn(
+    chat_tpl = cfg.adversary_chat_template_model if cfg.adversary_is_base else None
+    if cfg.training.mode == "dpo":
+        # DPO mode handled separately in train_adversary_dpo
+        pass
+    else:
+        train_lora_multiturn(
+            model_id=cfg.adversary_model,
+            data_path=data_dir,
+            adapter_path=adapter_dir,
+            num_iters=cfg.training.lora_iters,
+            batch_size=cfg.training.batch_size,
+            lr=cfg.training.lora_lr,
+            lora_rank=cfg.training.lora.rank,
+            lora_alpha=cfg.training.lora.alpha,
+            target_modules=cfg.training.lora.target_modules,
+            chat_template_model=chat_tpl,
+        )
+
+
+def train_adversary_dpo(conversations, adv_messages_list, verdicts,
+                        goal_entries, round_num, cfg):
+    """Phase 3 (DPO): Train adversary on ALL conversations using preference pairs.
+
+    Unlike SFT which only learns from wins, DPO pairs successful attacks
+    (chosen) with failed attacks (rejected) for the same goal. Every
+    conversation provides training signal.
+    """
+    print(f"\n[Round {round_num}] >> PHASE 3: ADVERSARY TRAINING (DPO)")
+
+    exp = _exp_dir(cfg)
+    data_dir = os.path.join(exp, cfg.data_path)
+    adapter_dir = os.path.join(exp, cfg.adapter_path)
+    rounds_dir = os.path.join(exp, "rounds")
+
+    # Collect all round files up to and including this round for pair building.
+    # Also include any seed rounds (from prior experiments) for initial signal.
+    import glob
+    round_files = []
+    seed_dir = os.path.join(exp, "seed_rounds")
+    if os.path.isdir(seed_dir):
+        round_files.extend(sorted(glob.glob(os.path.join(seed_dir, "round_*.jsonl"))))
+    for r in range(round_num + 1):
+        rf = os.path.join(rounds_dir, f"round_{r}.jsonl")
+        if os.path.exists(rf):
+            round_files.append(rf)
+
+    if not round_files:
+        print("   No round data for DPO. Skipping.")
+        return
+
+    from turnstile.dpo import build_dpo_pairs, train_dpo
+
+    pairs = build_dpo_pairs(round_files, per_turn=True)
+    if not pairs:
+        print("   No DPO pairs (need both wins and losses for same goal). Skipping.")
+        return
+
+    # Save pairs
+    pairs_file = os.path.join(data_dir, f"dpo_pairs_round_{round_num}.jsonl")
+    with open(pairs_file, "w") as f:
+        for p in pairs:
+            f.write(json.dumps(p) + "\n")
+    print(f"   Built {len(pairs)} DPO pairs from {len(round_files)} rounds")
+
+    chat_tpl = cfg.adversary_chat_template_model if cfg.adversary_is_base else None
+    train_dpo(
         model_id=cfg.adversary_model,
-        data_path=data_dir,
+        pairs_file=pairs_file,
         adapter_path=adapter_dir,
         num_iters=cfg.training.lora_iters,
-        batch_size=cfg.training.batch_size,
         lr=cfg.training.lora_lr,
+        beta=0.1,
         lora_rank=cfg.training.lora.rank,
         lora_alpha=cfg.training.lora.alpha,
         target_modules=cfg.training.lora.target_modules,
+        chat_template_model=chat_tpl,
     )
+
+    # Also save wins for corpus tracking
+    win_indices = [i for i, v in enumerate(verdicts) if v.get("unsafe", False)]
+    if win_indices:
+        new_entries = [{"messages": adv_messages_list[idx]} for idx in win_indices]
+        wins_file = os.path.join(data_dir, f"round_{round_num}_wins.jsonl")
+        with open(wins_file, "w") as f:
+            for item in new_entries:
+                f.write(json.dumps(item) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -670,14 +753,17 @@ def main(cfg: ExperimentConfig | None = None, together_api_key: str = "",
 
         _save_round_data(conversations, verdicts, r, cfg)
 
-        # Phase 3: Train adversary on successful conversations
-        if win_indices:
+        # Phase 3: Train adversary
+        if cfg.training.mode == "dpo":
+            # DPO: train on ALL conversations (wins + losses) as preference pairs.
+            # Trains every round regardless of win count.
+            train_adversary_dpo(
+                conversations, adv_messages_list, verdicts,
+                goal_entries, r, cfg,
+            )
+        elif win_indices:
             train_adversary(win_indices, adv_messages_list, r, cfg)
         elif train_on_guard_wins and dual_judge is not None:
-            # Guard-fallback: dual judge gave 0 wins, but check if
-            # Llama Guard alone flagged some conversations. Use those
-            # for training (noisy but directional signal) while the
-            # reported ASR stays honest (dual judge = 0%).
             guard_indices = [
                 i for i, v in enumerate(verdicts)
                 if v.get("guard_unsafe", False)

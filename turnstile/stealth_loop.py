@@ -66,6 +66,7 @@ class StealthConfig:
     alpha: float = 3.0              # exponent: w = (1-p)^alpha
     retrain_probe_every: int = 5    # retrain probe every N rounds (0=never)
     tsae_dir: str = ""              # path to pre-trained T-SAE
+    probe_path: str = ""            # path to sklearn probe pickle (alternative to T-SAE)
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +205,37 @@ class TemporalJailbreakProbe:
 
     def score_batch(self, hidden_states_list):
         """Score multiple conversations."""
+        return np.array([self.score(hs) for hs in hidden_states_list])
+
+
+class PerTurnLogisticProbe:
+    """Simple logistic probe on per-turn hidden states (no T-SAE).
+
+    Scores each conversation by running the probe on each turn's hidden
+    state and returning the max probability (most "unsafe" turn).
+    Compatible with the stealth loop's score/score_batch interface.
+    """
+
+    def __init__(self, clf):
+        self.clf = clf
+
+    @classmethod
+    def from_pickle(cls, path):
+        import pickle
+        with open(path, "rb") as f:
+            clf = pickle.load(f)
+        print(f"  [PerTurnProbe] Loaded from {path}")
+        return cls(clf)
+
+    def score(self, per_turn_hidden_states):
+        """Score a conversation → max detection probability across turns."""
+        if per_turn_hidden_states is None:
+            return 0.5
+        X = per_turn_hidden_states.numpy()
+        probs = self.clf.predict_proba(X)[:, 1]
+        return float(probs.max())
+
+    def score_batch(self, hidden_states_list):
         return np.array([self.score(hs) for hs in hidden_states_list])
 
 
@@ -360,7 +392,7 @@ def log_stealth_metrics(round_num, n_candidates, win_indices, probe_scores,
 # Main loop
 # ---------------------------------------------------------------------------
 
-def main(cfg=None, stealth_cfg=None):
+def main(cfg=None, stealth_cfg=None, together_api_key=""):
     if cfg is None:
         cfg = ExperimentConfig()
     if stealth_cfg is None:
@@ -379,16 +411,28 @@ def main(cfg=None, stealth_cfg=None):
         max_size=cfg.zoo.max_size,
     )
 
-    # Load temporal probe
-    print("\n=== LOADING TEMPORAL PROBE ===")
-    if not stealth_cfg.tsae_dir:
-        print("[Error] --tsae-dir is required")
+    # Load probe (either T-SAE or per-turn logistic)
+    print("\n=== LOADING PROBE ===")
+    if stealth_cfg.probe_path:
+        probe = PerTurnLogisticProbe.from_pickle(stealth_cfg.probe_path)
+    elif stealth_cfg.tsae_dir:
+        probe = TemporalJailbreakProbe.from_pretrained(stealth_cfg.tsae_dir)
+    else:
+        print("[Error] --probe-path or --tsae-dir required")
         sys.exit(1)
-    probe = TemporalJailbreakProbe.from_pretrained(stealth_cfg.tsae_dir)
 
     # Accumulated data for probe retraining
     accum_hidden = []
     accum_labels = []
+
+    # Initialize dual judge if Together API key is provided
+    dual_judge = None
+    if together_api_key:
+        from turnstile.judge import DualJudge
+        dual_judge = DualJudge(together_api_key)
+        print("Judge: dual (Llama Guard + 70B via Together API)")
+    else:
+        print("Judge: Llama Guard only")
 
     print("\n=== STARTING STEALTH TURNSTILE LOOP ===")
     print(f"Experiment: {cfg.name}")
@@ -409,9 +453,27 @@ def main(cfg=None, stealth_cfg=None):
             continue
 
         # Phase 2: Judge
-        win_indices, verdicts = judge_conversations(
-            conversations, goal_entries, r, cfg
-        )
+        if dual_judge is not None:
+            win_indices, verdict_objs = dual_judge.judge_conversations(
+                conversations, goal_entries, cfg.num_turns,
+            )
+            verdicts = [
+                {
+                    "unsafe": v.unsafe,
+                    "guard_unsafe": v.guard_unsafe,
+                    "together_unsafe": v.together_unsafe,
+                    "turn_of_breach": v.turn_of_breach,
+                    "goal": v.goal,
+                    "behavior": v.behavior,
+                    "category": v.category,
+                    "disagreement": v.disagreement,
+                }
+                for v in verdict_objs
+            ]
+        else:
+            win_indices, verdicts = judge_conversations(
+                conversations, goal_entries, r, cfg
+            )
 
         # Save round data (conversations + verdicts)
         _save_round_data(conversations, verdicts, r, cfg)
@@ -450,12 +512,37 @@ def main(cfg=None, stealth_cfg=None):
         if (stealth_cfg.retrain_probe_every > 0
                 and (r + 1) % stealth_cfg.retrain_probe_every == 0
                 and len(accum_labels) >= 20):
-            new_probe = TemporalJailbreakProbe.fit_fresh(
-                probe.tsae, probe.scale, probe.n_high,
-                accum_hidden, accum_labels,
-            )
-            if new_probe is not None:
-                probe = new_probe
+            if isinstance(probe, PerTurnLogisticProbe):
+                # Retrain logistic probe on accumulated per-turn data
+                from sklearn.linear_model import LogisticRegression
+                from sklearn.model_selection import StratifiedKFold, cross_val_score
+                X_turns, y_turns = [], []
+                for hs, label in zip(accum_hidden, accum_labels):
+                    if hs is None:
+                        continue
+                    for t in range(hs.shape[0]):
+                        X_turns.append(hs[t].numpy())
+                        y_turns.append(1 if label else 0)
+                X_arr = np.array(X_turns)
+                y_arr = np.array(y_turns)
+                if y_arr.sum() >= 5 and (1 - y_arr).sum() >= 5:
+                    clf = LogisticRegression(max_iter=1000, C=1.0,
+                                             class_weight="balanced")
+                    cv = StratifiedKFold(n_splits=5, shuffle=True,
+                                         random_state=42)
+                    scores = cross_val_score(clf, X_arr, y_arr, cv=cv,
+                                             scoring="roc_auc")
+                    print(f"  [Probe] Retrained: AUC={scores.mean():.3f} "
+                          f"+/- {scores.std():.3f}")
+                    clf.fit(X_arr, y_arr)
+                    probe = PerTurnLogisticProbe(clf)
+            else:
+                new_probe = TemporalJailbreakProbe.fit_fresh(
+                    probe.tsae, probe.scale, probe.n_high,
+                    accum_hidden, accum_labels,
+                )
+                if new_probe is not None:
+                    probe = new_probe
 
         elapsed = time.time() - round_start
         log_stealth_metrics(
@@ -490,7 +577,9 @@ def parse_args(args=None):
     parser.add_argument("--lora-iters", type=int, default=50)
     parser.add_argument("--lora-lr", type=float, default=1e-5)
     parser.add_argument("--batch-size", type=int, default=4)
-    parser.add_argument("--tsae-dir", type=str, required=True)
+    parser.add_argument("--tsae-dir", type=str, default="")
+    parser.add_argument("--probe-path", type=str, default="",
+                        help="Path to sklearn probe pickle (alternative to --tsae-dir)")
     parser.add_argument("--stealth-mode", type=str, default="weighted",
                         choices=["filter", "weighted", "none"])
     parser.add_argument("--stealth-threshold", type=float, default=0.4)
@@ -498,6 +587,8 @@ def parse_args(args=None):
     parser.add_argument("--retrain-probe-every", type=int, default=5)
     parser.add_argument("--harden-victim", action="store_true",
                         help="Enable victim hardening (default: frozen)")
+    parser.add_argument("--together-key", type=str, default="",
+                        help="Together API key for dual judge")
 
     parsed = parser.parse_args(args)
 
@@ -526,11 +617,12 @@ def parse_args(args=None):
         alpha=parsed.stealth_alpha,
         retrain_probe_every=parsed.retrain_probe_every,
         tsae_dir=parsed.tsae_dir,
+        probe_path=parsed.probe_path,
     )
 
-    return cfg, stealth_cfg
+    return cfg, stealth_cfg, parsed.together_key
 
 
 if __name__ == "__main__":
-    cfg, stealth_cfg = parse_args()
-    main(cfg, stealth_cfg)
+    cfg, stealth_cfg, together_key = parse_args()
+    main(cfg, stealth_cfg, together_api_key=together_key)

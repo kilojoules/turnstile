@@ -21,7 +21,7 @@ class LoRAConfig:
 
 @dataclass
 class TrainingConfig:
-    mode: str = "buffered"       # "buffered" (SAC-like) | "memoryless" (PPO-like)
+    mode: str = "buffered"       # "buffered" | "memoryless" | "dpo"
     buffer_size: int = 200       # FIFO cap, only used in buffered mode
     lora_iters: int = 50
     lora_lr: float = 1e-5
@@ -46,6 +46,18 @@ class ExperimentConfig:
     adversary_model: str = "meta-llama/Llama-3.2-3B-Instruct"
     victim_model: str = "meta-llama/Llama-3.1-8B-Instruct"
     judge_model: str = "meta-llama/Llama-Guard-3-1B"
+
+    # Base model adversary: use a pretrained model with no safety training.
+    # When True, the adversary_model should point to a base (non-Instruct)
+    # checkpoint (e.g. "meta-llama/Llama-3.2-3B"). The Instruct chat template
+    # is injected into the tokenizer so apply_chat_template works everywhere.
+    # This sidesteps the bootstrapping problem: the base model has no safety
+    # prior to fight, so LoRA fine-tuning on verified wins teaches both
+    # conversational structure and attack strategy simultaneously.
+    adversary_is_base: bool = False
+    # Model to borrow the chat template from (must be the Instruct variant
+    # of the same family).
+    adversary_chat_template_model: str = "meta-llama/Llama-3.2-3B-Instruct"
 
     # Multi-turn parameters
     num_turns: int = 5
@@ -90,7 +102,7 @@ class ExperimentConfig:
         parser.add_argument("--candidates", type=int, default=30)
         parser.add_argument("--num-turns", type=int, default=5)
         parser.add_argument("--mode", type=str, default="buffered",
-                            choices=["buffered", "memoryless"])
+                            choices=["buffered", "memoryless", "dpo"])
         parser.add_argument("--buffer-size", type=int, default=200)
         parser.add_argument("--lora-iters", type=int, default=50)
         parser.add_argument("--lora-lr", type=float, default=1e-5)
@@ -105,6 +117,12 @@ class ExperimentConfig:
                             default="meta-llama/Llama-3.1-8B-Instruct")
         parser.add_argument("--harden-victim", action="store_true",
                             help="Enable victim hardening (default: frozen)")
+        parser.add_argument("--adversary-is-base", action="store_true",
+                            help="Adversary is a base (non-Instruct) model; "
+                                 "inject Instruct chat template into tokenizer")
+        parser.add_argument("--adversary-chat-template-model", type=str,
+                            default="meta-llama/Llama-3.2-3B-Instruct",
+                            help="Model to borrow chat template from")
         parser.add_argument("--no-hidden-states", action="store_true",
                             help="Skip per-turn hidden state collection")
         parser.add_argument("--hidden-layer", type=int, default=None,
@@ -121,6 +139,8 @@ class ExperimentConfig:
             rounds=parsed.rounds,
             candidates_per_round=parsed.candidates,
             harden_victim=parsed.harden_victim,
+            adversary_is_base=parsed.adversary_is_base,
+            adversary_chat_template_model=parsed.adversary_chat_template_model,
             training=TrainingConfig(
                 mode=parsed.mode,
                 buffer_size=parsed.buffer_size,

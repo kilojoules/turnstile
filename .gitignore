@@ -9,7 +9,20 @@ experiments/*/adapters/
 experiments/*/checkpoints/
 experiments/*/hidden_states/
 experiments/*/data/
+experiments/*/seed_rounds/
+experiments/*/victim_adapters/
+experiments/*/victim_data/
 results/
+
+# Large data files
+data/all_conversations_jbb.json
+data/base_adversary/
+data/base_adversary_3090/
+
+# Experiment round data (large JSONL, tracked via metrics only)
+experiments/*/rounds/
+results_3090_rounds/
+results_3090_frozen_3b_v1.jsonl
 
 # Logs
 *.log
@@ -17,5 +30,11 @@ results/
 # PDF papers
 *.pdf
 
-# Seed data (small, keep)
-!data/
+# Vast AI instance tracking (ephemeral)
+experiments/parallel_instances.txt
+experiments/suite_log.txt
+
+# Shell scripts for remote execution (not part of core pipeline)
+run_base_adversary.sh
+run_vllm_4090.sh
+.devcatrc
