@@ -467,6 +467,7 @@ def main(cfg=None, stealth_cfg=None, together_api_key=""):
                     "behavior": v.behavior,
                     "category": v.category,
                     "disagreement": v.disagreement,
+                    "api_failed": v.api_failed,
                 }
                 for v in verdict_objs
             ]

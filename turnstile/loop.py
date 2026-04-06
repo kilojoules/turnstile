@@ -743,6 +743,7 @@ def main(cfg: ExperimentConfig | None = None, together_api_key: str = "",
                     "behavior": v.behavior,
                     "category": v.category,
                     "disagreement": v.disagreement,
+                    "api_failed": v.api_failed,
                 }
                 for v in verdict_objs
             ]
