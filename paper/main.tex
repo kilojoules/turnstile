@@ -9,7 +9,8 @@
 \usepackage{natbib}
 \usepackage{multirow}
 
-\title{Safety Representations Predict but Do Not Prevent\\Multi-Turn Jailbreaks: Mechanistic Evidence\\from Cross-Scale Adversarial Self-Play}
+\title{What Happens Inside a Language Model\\When It Is Being Jailbroken?\\[4pt]
+\large Empirical Evidence from Multi-Turn Adversarial Self-Play}
 
 \author{Julian Quick\\
   Lawrence Berkeley National Laboratory\\
@@ -22,53 +23,59 @@
 
 % ============================================================
 \begin{abstract}
-We study the internal dynamics of an 8B-parameter language model under multi-turn adversarial pressure from a DPO-trained 3B-parameter adversary.
-A per-turn linear probe on the victim's hidden states detects jailbreak intent with AUC~0.97---yet the victim complies at rates of 18--26\%.
-Mechanistic analyses reveal a striking dissociation between safety representation and safety behavior:
-(1)~jailbreak-relevant information is distributed across all layers (probe AUC 0.77 at layer~0, rising to 0.84 at layer~31), but the compliance decision manifests exclusively at the final layer, where a logit lens shows the refusal signal eroding from $-0.45$ to $+0.11$ across conversation turns;
-(2)~successful jailbreaks activate a sparse set of SAE features while suppressing refusal-associated features, and four of 16{,}384 features persist across $>$80\% of adversarial rounds, suggesting architectural rather than strategic vulnerabilities;
-(3)~projection onto the refusal direction \citep{arditi2024refusal} reveals rapid collapse after the first turn rather than gradual erosion.
-Against a hardening victim, a stealth-trained adversary that additionally minimizes probe detection shows a marginal advantage (+3.1~pp, $p=0.061$), with a significant effect in one of three seeds ($p=0.002$).
-The victim model ``knows'' it is being attacked at every layer and every turn---but this knowledge does not reliably translate into refusal.
-These findings extend recent theoretical work on the dissociation between safety recognition and safety execution \citep{wu2026knowingwithoutacting} with direct empirical evidence under adversarial pressure.
+What happens inside a language model when it is being jailbroken?
+We study this question by training a 3B-parameter adversary to jailbreak an 8B-parameter victim through 5-turn conversations via DPO self-play, then characterizing the victim's internal dynamics across layers and turns.
+A per-turn linear probe detects jailbreak intent with AUC~0.97 from the first turn---yet the victim complies at rates of 18--26\%.
+We trace this disconnect through three observations.
+First, a logit lens analysis reveals that the compliance decision is localized to the final transformer layer, where the refusal signal erodes from $-0.45$ to $+0.11$ across conversation turns in successful jailbreaks---while earlier layers carry no decision signal at all.
+Second, projection onto the refusal direction \citep{arditi2024refusal} shows that the victim's refusal \emph{representation} collapses after a single turn, even though the compliance \emph{decision} takes several more turns to flip---a temporal dissociation between what the model represents and what it does.
+Third, a sparse set of SAE features co-occurs with successful jailbreaks across rounds, with two features appearing in both win/loss differentiation and cross-round persistence analyses.
+These findings are correlational: we characterize what changes inside the model during multi-turn jailbreaks but do not establish which changes are causal.
+We discuss what targeted interventions---particularly refusal-direction clamping at the final layer---would be needed to move from characterization to causal explanation.
+Our observations are consistent with the Disentangled Safety Hypothesis \citep{wu2026knowingwithoutacting} and extend it to the dynamic, multi-turn setting: the victim broadly represents that it is under attack, but this knowledge does not reliably translate into refusal.
 \end{abstract}
 
 % ============================================================
 \section{Introduction}
 \label{sec:intro}
 
-A central assumption in LLM safety research is that if we can detect harmful intent in a model's internal representations, we can intervene to prevent harmful outputs.
-This assumption underlies representation-based safety monitors, including linear probes on hidden states, sparse autoencoder (SAE) feature classifiers, and refusal direction analysis \citep{arditi2024refusal}.
-Recent work provides both theoretical and empirical reasons for caution.
-\citet{wu2026knowingwithoutacting} propose the ``Disentangled Safety Hypothesis,'' arguing that safety recognition (``Knowing'') and safety execution (``Acting'') become structurally independent in deep layers.
-\citet{bailey2024obfuscated} demonstrate that white-box optimization can produce obfuscated activations that reduce probe recall from 100\% to 0\% while maintaining 90\% jailbreak success.
+When a language model is jailbroken, what changes inside it?
+The model was trained to refuse harmful requests.
+Something in its internal computation shifts during the adversarial conversation, allowing compliance where refusal was intended.
+This paper asks what that shift looks like---where it occurs in the network, how it evolves across conversation turns, and whether the model's own representations contain evidence of the impending failure.
 
-We provide a complementary perspective: the representation-behavior gap arises \emph{naturally} from black-box adversarial self-play, without any gradient-based manipulation of the victim's internals.
-In our setup, a 3B-parameter adversary learns to jailbreak an 8B-parameter victim through 5-turn conversations, improving its strategy through DPO training \citep{rafailov2023dpo} on win/loss pairs.
-The adversary observes only the victim's text responses---no logits, gradients, or hidden states.
+A growing body of work establishes that safety-relevant information is present in model hidden states.
+Linear probes can detect jailbreaks from residual stream activations \citep{jailbreaklens2024}.
+Refusal behavior is mediated by a single direction in the residual stream \citep{arditi2024refusal}.
+\citet{wu2026knowingwithoutacting} propose the Disentangled Safety Hypothesis: safety recognition (``Knowing'') and safety execution (``Acting'') become structurally independent in deep layers.
+\citet{bailey2024obfuscated} show that white-box optimization can produce activations that bypass probes while maintaining jailbreak success.
 
-We find that a per-turn linear probe detects jailbreak intent with AUC~0.97, yet the victim complies at rates of 18--26\%.
-Mechanistic analyses reveal that safety information is distributed across all layers (probe AUC 0.77--0.84) but the compliance \emph{decision} manifests only at the final layer, where the refusal signal erodes gradually across conversation turns.
-Successful jailbreaks exploit a sparse, partly persistent set of SAE features, with four features appearing in $>$80\% of adversarial rounds.
+These results establish \emph{that} a gap exists between safety representations and safety behavior.
+We ask a complementary question: what does this gap look like \emph{in practice}, as it develops turn by turn during a multi-turn jailbreak?
 
-Our contributions are:
+To study this, we build an adversarial self-play system where a 3B-parameter model (Llama-3.2-3B-Instruct) learns to jailbreak an 8B-parameter victim (Llama-3.1-8B-Instruct) through 5-turn conversations, trained via DPO \citep{rafailov2023dpo} on win/loss pairs.
+The adversary operates through natural language only---no access to the victim's logits, gradients, or hidden states.
+This constrained setting achieves moderate attack success (18--26\% ASR), far below prompt-engineering approaches like GOAT \citep{pavlova2024goat} (97\% ASR), but it produces a controlled, gradually escalating pressure that enables turn-by-turn internal characterization.
 
+We apply the logit lens \citep{nostalgebraist2020logitlens}, layer-wise probing, refusal direction analysis \citep{arditi2024refusal}, and SAE feature tracking to characterize what changes inside the victim during these conversations.
+Our findings are \emph{observational}: we describe what co-occurs with successful jailbreaks, not what causes them.
+We discuss what causal interventions would distinguish these possibilities.
+
+\paragraph{Summary of observations.}
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Multi-turn logit lens visualization.} The first turn-by-turn visualization of how the compliance/refusal decision evolves across transformer layers and conversation turns in an adversarial setting. We show the decision is localized to layer~31 and flips from refusal ($\Delta=-0.45$) to compliance ($\Delta=+0.11$) across turns 0--4.
+  \item \textbf{The compliance decision is localized and erosive.} The logit lens shows that the refusal/compliance decision manifests exclusively at the final transformer layer (layer~31) and nowhere else. In successful jailbreaks, this signal flips from strong refusal ($\Delta=-0.45$) to compliance ($\Delta=+0.11$) across five turns. To our knowledge, this is the first turn-by-turn visualization of compliance erosion across layers in a multi-turn adversarial setting.
 
-  \item \textbf{The representation-behavior gap under adversarial pressure.} We provide direct empirical evidence for the dissociation between safety representation and safety behavior proposed by \citet{wu2026knowingwithoutacting}, extending it from static analysis to dynamic multi-turn adversarial interactions.
+  \item \textbf{Representation collapses fast; the decision erodes slowly.} Projection onto the refusal direction shows the victim's refusal \emph{representation} collapses after a single adversary-victim exchange, while the compliance \emph{decision} (logit lens) takes four more turns to flip. The model loses its internal refusal posture early but keeps refusing for several turns---a temporal dissociation between representation and behavior.
 
-  \item \textbf{Persistent SAE features across adversarial rounds.} We identify four SAE features (out of 16{,}384) that the adversary consistently exploits across 13 rounds of self-play, two of which are also among the top differentially activated features between wins and losses.
+  \item \textbf{Detection is distributed but ineffective.} A linear probe detects jailbreak intent at every layer (AUC 0.77 at layer~0, rising to 0.84 at layer~31) with near-perfect accuracy at the training layer (AUC~0.97). The victim ``knows'' it is being attacked broadly across its representations, but this knowledge does not prevent compliance.
 
-  \item \textbf{Marginal evidence for stealth evasion.} A stealth-trained adversary shows a +3.1~pp ASR advantage against a hardening victim ($p=0.061$), consistent with---but weaker than---the white-box evasion demonstrated by \citet{bailey2024obfuscated}.
+  \item \textbf{A sparse set of features co-occurs with jailbreaks across rounds.} Of 16{,}384 SAE features, four persist across $>$80\% of adversarial rounds, and two of these also differentiate wins from losses. We note these as candidate targets for future causal investigation, not as confirmed vulnerability mechanisms.
 \end{enumerate}
 
-\paragraph{Distinction from prior work.}
-\citet{zhao2025weaktostrong} demonstrate weak-to-strong jailbreaking via decoding-time logit arithmetic, requiring white-box access to the victim's logits and achieving $>$99\% ASR.
-Our adversary operates through natural language only, learns its strategy through self-play, and achieves much lower ASR (18--26\%) but in a more realistic threat model.
-\citet{liu2025selfredteam} use self-play for red-teaming but do not perform mechanistic analysis.
-\citet{jailbreaklens2024} apply mechanistic interpretability to jailbreaks but study static, single-turn attacks.
-Our work combines multi-turn adversarial self-play with mechanistic analysis of the victim's internal states---to our knowledge, the first such combination.
+\paragraph{Scope and limitations.}
+All findings describe the internal dynamics of Llama-3.1-8B under moderate-success-rate attacks from a learned 3B adversary.
+We do not claim these dynamics generalize to stronger attacks (e.g., GOAT's 97\% ASR), other model families, or larger scales.
+The analyses are correlational; we discuss what causal experiments would be needed in Section~\ref{sec:toward_causal}.
 
 % ============================================================
 \section{Method}
@@ -77,7 +84,7 @@ Our work combines multi-turn adversarial self-play with mechanistic analysis of 
 \subsection{Models and Setup}
 
 We use Llama-3.2-3B-Instruct as the adversary and Llama-3.1-8B-Instruct as the victim.
-The adversary is augmented with a LoRA adapter (rank~16) trained via DPO \citep{rafailov2023dpo}.
+The adversary is augmented with a LoRA adapter (rank~16, 2.3M trainable parameters) trained via DPO \citep{rafailov2023dpo}.
 Each round consists of 100 five-turn conversations targeting the 100 standardized harmful behaviors from JailbreakBench \citep{chao2024jailbreakbench}.
 We run 15 rounds per seed across 3 seeds (42, 123, 456), totaling 4{,}500 conversations per condition.
 
@@ -90,22 +97,21 @@ After each round, successful jailbreaks (as determined by the dual judge) form t
 The LoRA adapter is updated on these preference pairs.
 Training data is cumulative across rounds.
 
-\subsection{Stealth Training}
-
-In the stealth condition, the adversary receives an additional signal: the negative of a linear probe's confidence score on the victim's hidden states.
-The stealth adversary thus jointly optimizes for jailbreak success and low probe detectability, selecting for wins that evade the victim's internal safety representations.
-The probe is trained once on data from early rounds and held fixed.
-
-\subsection{Victim Hardening}
-
-In the hardened condition, the victim fine-tunes on refusal completions after each round, learning to refuse attack patterns that succeeded in the previous round.
-This creates an adversarial arms race.
+DPO is essential for this sparse-reward setting.
+Only 3--7\% of conversations per round are wins.
+Supervised fine-tuning on wins alone produces 0--3\% ASR because the adversary memorizes specific attacks without learning what distinguishes success from failure.
+DPO learns from \emph{every} conversation by contrasting chosen and rejected examples, enabling 18--26\% ASR---a 5--9$\times$ improvement.
 
 \subsection{Dual-Judge Evaluation}
 
 Single-judge evaluation is unreliable for multi-turn conversations.
 Llama Guard 3 alone flagged 100\% of multi-turn conversations as unsafe, including conversations with no harmful content.
-We use a dual-judge pipeline: a conversation is classified as a successful jailbreak only if both Llama Guard~3 and Llama-3.1-70B-Instruct agree.
+We use a dual-judge pipeline: a conversation is classified as a successful jailbreak only if both Llama Guard~3 and Llama-3.1-70B-Instruct (using the JailbreakBench standard prompt) agree.
+
+\subsection{Stealth and Hardening Conditions}
+
+We additionally test two variations: (1) a \emph{stealth} adversary that receives probe-evasion weighting during DPO training, selecting for wins that produce low probe scores; and (2) a \emph{hardened} victim that fine-tunes on refusal completions after each round.
+These conditions produce behavioral results reported in Section~\ref{sec:behavioral} but are secondary to the internal characterization, which uses the frozen-victim setting.
 
 \subsection{Experimental Design}
 
@@ -129,11 +135,10 @@ Hardened stealth  & DPO + probe evasion        & Hardened each round \\
 \section{Behavioral Results}
 \label{sec:behavioral}
 
-\subsection{Frozen Victim: Stealth Does Not Help}
+\subsection{Frozen Victim}
 
-Against a frozen victim, stealth training provides no advantage (Table~\ref{tab:frozen}).
-This is expected: the probe detects attacks (AUC~0.97) but the frozen victim does not use this information for defense.
-Both adversaries converge to approximately 26\% ASR.
+Both adversary variants converge to approximately 26\% ASR against the frozen victim (Table~\ref{tab:frozen}).
+Stealth training provides no advantage when the victim does not adapt its defenses.
 
 \begin{table}[h]
 \centering
@@ -146,15 +151,15 @@ Both adversaries converge to approximately 26\% ASR.
 456 & 25.7\% & 26.9\% & $-1.2$ pp \\
 \bottomrule
 \end{tabular}
-\caption{Frozen victim: mean ASR across 15 rounds. No significant difference.}
+\caption{Frozen victim: mean ASR across 15 rounds. No significant difference ($p=0.16$).}
 \label{tab:frozen}
 \end{table}
 
-\subsection{Hardened Victim: Marginal Stealth Advantage}
+\subsection{Hardened Victim: Suggestive Stealth Advantage}
 
-Against a hardening victim, the stealth adversary shows a marginal advantage (Table~\ref{tab:hardened}).
-Seed~42 is individually significant (Mann-Whitney $p=0.023$, $d=0.83$); seeds 123 and 456 are directionally consistent but not significant.
-The pooled effect is $+3.1$~pp ($p=0.061$, $d=0.46$).
+Against a hardening victim, the stealth adversary shows a directionally consistent but statistically marginal advantage (Table~\ref{tab:hardened}).
+Seed~42 is individually significant ($p=0.023$, $d=0.83$); the pooled effect is $+3.1$~pp ($p=0.061$).
+We present this as suggestive, not conclusive.
 
 \begin{table}[h]
 \centering
@@ -170,82 +175,93 @@ The pooled effect is $+3.1$~pp ($p=0.061$, $d=0.46$).
 \bottomrule
 \end{tabular}
 \caption{Hardened victim: stealth vs.\ control ASR. Pooled Mann-Whitney $U$, one-sided, $d=0.46$.
-We present this result as suggestive, not conclusive.
-The effect is strongest in early-to-mid rounds (rounds 1--8: $+5$--$14$~pp for seed~42) and converges by rounds 10--14 as the victim's defenses saturate.}
+We present this result as suggestive, not conclusive.}
 \label{tab:hardened}
 \end{table}
 
-This result is weaker than the white-box stealth evasion of \citet{bailey2024obfuscated}, who reduce probe recall from 100\% to 0\%.
-Our adversary operates under a much more constrained threat model (black-box, multi-turn dialogue), producing a correspondingly weaker effect.
-The finding is consistent with---but not a strong confirmation of---the hypothesis that safety monitors reveal exploitable structure.
-
-\subsection{DPO as a Necessary Condition}
-
-DPO training \citep{rafailov2023dpo} is essential for the self-play loop.
-Supervised fine-tuning on winning conversations alone produces low ASR---the adversary memorizes specific attacks but does not learn what distinguishes successful from unsuccessful strategies.
-DPO on win/loss pairs enables generalization by learning the contrast between chosen and rejected conversations.
-
 % ============================================================
-\section{Mechanistic Analysis}
-\label{sec:mechanistic}
+\section{Internal Dynamics During Multi-Turn Jailbreaks}
+\label{sec:internal}
 
-We apply four mechanistic analyses to characterize the representation-behavior gap.
-All analyses use the victim model (Llama-3.1-8B-Instruct) with hidden state extraction via HuggingFace Transformers.
-SAE features are extracted using a custom sparse autoencoder (16{,}384 features, 4$\times$ expansion) trained on per-turn hidden states from the frozen-victim condition.
+We now turn to the central question: what changes inside the victim as a jailbreak conversation progresses?
+All analyses use the victim model (Llama-3.1-8B-Instruct) with hidden state extraction at inference time.
+These analyses are \emph{observational}: they characterize what co-occurs with successful jailbreaks, not what causes them.
 
-\subsection{Layer-Wise Probing: Safety Information Is Distributed}
-
-We train logistic regression probes (PCA-256, 5-fold stratified CV, balanced class weights) at every 4th layer on 6{,}500 per-turn hidden state samples from the stealth-hard-s42 condition.
-
-Detection AUC rises monotonically from 0.774 (layer~0) to 0.842 (layer~31).
-There is no sharp peak at any layer.
-Safety-relevant information is \emph{distributed} across the entire network, with even the embedding layer encoding substantial attack-relevant information.
-This is consistent with the distributed representation view but contrasts with work suggesting safety is enforced by specific attention heads \citep{park2026asguard}.
-
-\subsection{Logit Lens: The Compliance Decision Lives at Layer~31}
+\subsection{The Compliance Decision Lives at Layer~31 and Erodes Across Turns}
 \label{sec:logitlens}
 
-We apply the logit lens \citep{nostalgebraist2020logitlens} at every 4th layer and every turn of 80 multi-turn conversations (40 wins, 40 losses), projecting intermediate hidden states through RMSNorm and the unembedding matrix.
+We apply the logit lens \citep{nostalgebraist2020logitlens} at every 4th layer and every turn of 80 multi-turn conversations (40 wins, 40 losses from the frozen-stealth condition), projecting intermediate hidden states through RMSNorm and the unembedding matrix.
 We track $\Delta = P(\text{comply}) - P(\text{refuse})$ where compliance tokens are \{\texttt{Sure, Here, Okay, Certainly, Step, ...}\} and refusal tokens are \{\texttt{Sorry, Unfortunately, No, ...}\}.
 
-\paragraph{Layers 0--24 show near-zero signal.} The compliance/refusal decision is not formed in early or middle layers ($|\Delta| < 0.02$).
+\paragraph{Layers 0--24 carry no decision signal.} The compliance/refusal decision is not formed in early or middle layers ($|\Delta| < 0.02$).
 
 \paragraph{Layer 31 dominates and flips across turns.}
 For successful jailbreaks, $\Delta$ at layer~31 moves from $-0.45$ (strong refusal, turn~0) through $-0.06$ (turn~2) to $+0.11$ (compliance, turn~4).
 For failed attacks, $\Delta$ remains negative throughout ($-0.22$ to $-0.03$).
 
-\paragraph{Early turns increase the refusal signal.}
+\paragraph{The adversary triggers heightened vigilance before eroding it.}
 Counterintuitively, the model shows a \emph{stronger} refusal signal at turn~0 for conversations that will ultimately succeed as jailbreaks ($\Delta = -0.45$) than for those that will fail ($\Delta = -0.22$).
-The adversary's opening triggers heightened vigilance, but subsequent turns erode it.
+The adversary's opening gambit triggers heightened vigilance, but subsequent turns erode it.
+This pattern---initial alarm followed by gradual capitulation---suggests the multi-turn strategy works not by avoiding detection but by outlasting the model's resolve.
 
-\paragraph{Key finding.}
-This creates a striking tension with the layer-wise probing result: the \emph{probe} detects jailbreaks at all layers (distributed representation), but the compliance \emph{decision} manifests only at layer~31 (localized action).
-The model represents ``I am in a jailbreak conversation'' broadly but decides what to do about it only at the very end---the representation-behavior gap made mechanistically visible.
+\paragraph{What this tells us and what it does not.}
+The logit lens reveals \emph{where} and \emph{when} the compliance decision forms: exclusively at layer~31, gradually across turns.
+It does not tell us \emph{why} the decision erodes.
+Establishing causality would require intervention---for instance, clamping the refusal signal at layer~31 during the conversation and measuring whether ASR changes (Section~\ref{sec:toward_causal}).
 
-This extends the single-direction finding of \citet{arditi2024refusal} to the multi-turn setting.
-In their work, ablating the refusal direction causes immediate compliance.
-In our setting, the adversary achieves a similar effect gradually, through conversational pressure that erodes the refusal signal at the final layer.
+\subsection{Refusal Representation Collapses Before the Decision Flips}
+\label{sec:repe}
 
-\subsection{SAE Feature Analysis: Sparse Activation and Persistent Vulnerabilities}
+Following \citet{arditi2024refusal}, we extract a refusal direction via contrastive pairs at layer~31 and project victim hidden states onto it at each turn (40 wins, 40 losses).
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Turn 0}: Wins start \emph{higher} on the refusal direction ($+0.3$) than losses ($-12.1$). The victim is initially more defensive in conversations that will succeed as jailbreaks---consistent with the logit lens finding of heightened turn-0 vigilance.
+  \item \textbf{Turn 1}: Both conditions collapse to $\sim$$-15$. The refusal representation drops sharply after the first adversary-victim exchange.
+  \item \textbf{Turns 2--3}: Wins go further negative ($-20.4$) than losses ($-15.3$). Successful jailbreaks push the victim further from the refusal direction.
+  \item \textbf{Turn 4}: Partial recovery for wins ($-15.7$) while losses remain at $-11.8$.
+\end{itemize}
+
+\paragraph{Temporal dissociation.}
+This timeline does \emph{not} match the logit lens.
+The refusal \emph{representation} collapses rapidly after turn~0, while the compliance \emph{decision} (logit lens $\Delta$) erodes gradually over five turns.
+The victim loses its internal refusal posture after one exchange, but this is not immediately reflected in the output.
+The model continues refusing for several turns after its representation has already shifted---then behavior catches up.
+
+This dissociation is a concrete, dynamic instance of what \citet{wu2026knowingwithoutacting} describe theoretically: representations and behavior operate on different timescales and respond differently to adversarial pressure.
+We observe the dissociation; we cannot yet explain why it occurs.
+
+\subsection{Safety Detection Is Distributed but Ineffective}
+\label{sec:probe}
+
+We train logistic regression probes (PCA-256, 5-fold stratified CV, balanced class weights) at every 4th layer on 6{,}500 per-turn hidden state samples.
+
+Detection AUC rises monotonically from 0.774 (layer~0) to 0.842 (layer~31).
+At the probe's training layer (layer~16), 5-fold CV achieves 0.958 $\pm$ 0.007 AUC on 9{,}300 per-turn examples.
+There is no sharp peak at any layer: safety-relevant information is \emph{distributed} across the entire network.
+
+This distributed detection makes the compliance behavior more puzzling: the victim encodes attack-relevant information at every layer, from the embedding onward, yet this information does not prevent compliance.
+The combination with the logit lens result sharpens the picture: \emph{detection} is distributed, but the \emph{decision} is localized to layer~31---and it is at layer~31 that the adversary's multi-turn pressure has its effect.
+
+\subsection{Co-Occurring SAE Features}
 \label{sec:sae}
 
-\paragraph{Feature redirection.}
-We extract SAE feature activations at the breach turn from 50 successful and 50 failed jailbreaks (layer~15, where the SAE was trained).
+We extract sparse autoencoder (SAE) feature activations (16{,}384 features, 4$\times$ expansion, trained on per-turn hidden states) at the breach turn from 50 successful and 50 failed jailbreaks.
+
+\paragraph{Win/loss differentiation.}
 Top amplified features in wins vs.\ losses: F5209 ($d=+0.57$), F858 ($d=+0.51$), F10337 ($d=+0.51$).
 Top suppressed: F9836 ($d=-0.54$, active in 28\% of losses but 2\% of wins).
 Over 99.7\% of features show $|d| < 0.2$.
-Jailbreaks activate a sparse set of features while suppressing a distinct set---suggesting the adversary has learned a targeted intervention in the victim's feature space.
 
-\paragraph{Feature stability across rounds.}
-We track the top-20 SAE features per round across 13 rounds of stealth-hard-s42.
-Mean Jaccard similarity between consecutive rounds is 0.25 (turnover~75\%), indicating high strategic variability.
+\paragraph{Cross-round persistence.}
+We track the top-20 SAE features per round across 13 rounds.
+Mean Jaccard similarity between consecutive rounds is 0.25 (turnover~75\%), indicating high variability in which features are activated.
 However, four features persist across $>$80\% of rounds:
 
 \begin{table}[h]
 \centering
 \begin{tabular}{lcc}
 \toprule
-\textbf{Feature} & \textbf{Rounds present} & \textbf{Also top in redirection?} \\
+\textbf{Feature} & \textbf{Rounds present} & \textbf{Also top in differentiation?} \\
 \midrule
 F1511 & 13/13 (100\%) & No \\
 F5674 & 12/13 (92\%)  & No \\
@@ -253,110 +269,131 @@ F858  & 11/13 (85\%)  & Yes ($d=+0.51$) \\
 F5209 & 11/13 (85\%)  & Yes ($d=+0.57$) \\
 \bottomrule
 \end{tabular}
-\caption{Persistent SAE features. F858 and F5209 appear in both the redirection analysis (top amplified in wins vs.\ losses) and the stability analysis (present in $>$85\% of rounds).}
+\caption{Persistent SAE features. F858 and F5209 appear in both the win/loss differentiation and the cross-round persistence analyses.}
 \label{tab:persistent}
 \end{table}
 
-The convergence of F858 and F5209 across two independent analyses suggests these features represent architectural properties of the victim that the adversary consistently exploits, rather than ephemeral strategic choices.
-Without causal intervention (clamping these features to zero and measuring behavioral change), we cannot confirm they are causally involved rather than merely correlated.
-
-\subsection{Refusal Direction Trajectories: Rapid Collapse}
-\label{sec:repe}
-
-Following \citet{arditi2024refusal}, we extract a refusal direction via contrastive pairs at layer~31 (separation~115.5) and project victim hidden states onto it at each turn (40 wins, 40 losses).
-
-The results are surprising:
-\begin{itemize}[leftmargin=*]
-  \item \textbf{Turn 0}: Wins start \emph{higher} on the refusal direction ($+0.3$) than losses ($-12.1$). The victim is initially more defensive in conversations that will succeed as jailbreaks.
-  \item \textbf{Turn 1}: Both conditions collapse to $\sim$$-15$. The refusal representation drops sharply after the first adversary-victim exchange.
-  \item \textbf{Turns 2--3}: Wins go further negative ($-20.4$) than losses ($-15.3$). Successful jailbreaks push the victim further from the refusal direction.
-  \item \textbf{Turn 4}: Partial recovery for wins ($-15.7$) while losses remain at $-11.8$.
-\end{itemize}
-
-This is \emph{not} the gradual erosion suggested by the logit lens.
-The refusal \emph{representation} collapses rapidly after turn~0, while the compliance \emph{decision} (logit lens $\Delta$) erodes gradually.
-The apparent contradiction reflects different aspects of the same process: the representation collapses early, but the output decision takes additional turns to flip---another manifestation of the gap between what the model represents and what it does.
+\paragraph{Interpretation and caveats.}
+The convergence of F858 and F5209 across two independent analyses is suggestive but not conclusive.
+These features may represent recurrent patterns in the victim's computation during jailbreaks, or they may be artifacts of the SAE decomposition.
+Recent work has highlighted limitations of SAE feature decompositions for downstream safety tasks, finding that SAE features can underperform simpler linear probes.
+Without causal intervention---clamping these features to zero and measuring behavioral change---we cannot distinguish correlation from mechanism.
+We present these features as candidates for future causal investigation, not as confirmed vulnerabilities.
 
 % ============================================================
 \section{Related Work}
 \label{sec:related}
 
+\paragraph{The representation-behavior gap.}
+Our observations are consistent with several concurrent and prior findings.
+\citet{wu2026knowingwithoutacting} formalize the Disentangled Safety Hypothesis and provide causal evidence (double-dissociation experiments) that safety recognition and execution are structurally independent.
+\citet{bailey2024obfuscated} show that white-box optimization can bypass latent-space defenses while maintaining 90\% jailbreak success.
+\citet{jailbreaklens2024} apply representation and circuit analysis to single-turn jailbreaks, finding that jailbroken states cluster with safe inputs.
+Our contribution is not the discovery of this gap---which is now well-established---but the characterization of how it \emph{develops dynamically} across conversation turns in a learned adversarial interaction.
+
 \paragraph{Mechanistic interpretability of safety.}
 \citet{arditi2024refusal} show that refusal is mediated by a single direction in the residual stream.
-\citet{wu2026knowingwithoutacting} formalize the dissociation between safety recognition and execution as the ``Disentangled Safety Hypothesis.''
-\citet{jailbreaklens2024} apply representation and circuit analysis to single-turn jailbreaks, finding that jailbroken states cluster with safe inputs in representation space.
-\citet{park2026asguard} identify specific attention heads responsible for safety and propose activation-scaling interventions.
-Our work provides empirical evidence for the Knowing-Acting dissociation under dynamic, multi-turn adversarial pressure.
-
-\paragraph{Latent-space defenses and adversarial robustness.}
-\citet{bailey2024obfuscated} demonstrate that latent-space defenses---including probes, SAEs, and OOD detectors---can be bypassed by training models to produce obfuscated activations, reducing probe recall from 100\% to 0\% while maintaining 90\% jailbreak success.
-Their result uses white-box gradient-based optimization with direct access to the probe.
-Our stealth finding is consistent with but weaker than theirs, arising from the more constrained black-box setting.
+\citet{park2026asguard} identify specific attention heads responsible for safety and propose causal activation-scaling interventions.
+Our logit lens analysis extends \citet{arditi2024refusal}'s finding to the multi-turn setting, showing that the refusal direction erodes gradually at the final layer while remaining stable at earlier layers.
+Unlike \citet{park2026asguard}, we do not perform causal interventions, and our findings are correspondingly weaker in explanatory power but describe a complementary phenomenon: the temporal dynamics of compliance erosion.
 
 \paragraph{Automated red teaming.}
 The field has progressed from early automated approaches \citep{perez2022redteaming} through iterative refinement \citep{chao2023pair} to diverse prompt generation \citep{samvelyan2024rainbow} and multi-turn strategies \citep{russinovich2025crescendo, pavlova2024goat}.
-\citet{liu2025selfredteam} introduce online self-play where attacker and defender co-evolve, producing more diverse attacks and more robust defenders.
-Our contribution is not attack performance (our ASR is far below these baselines) but the combination of learned adversarial dialogue with mechanistic victim analysis.
+\citet{liu2025selfredteam} use self-play for red-teaming but do not perform internal analysis of the victim.
+Our ASR (18--26\%) is far below these methods, reflecting our constrained threat model.
+The trade-off is intentional: moderate-success attacks produce gradual pressure that can be characterized turn by turn, whereas overwhelming attacks (97\% ASR) saturate defenses too quickly for fine-grained internal analysis.
 
 \paragraph{Weak-to-strong phenomena.}
-\citet{burns2023weaktostrong} study whether weak supervisors can elicit strong capabilities.
-\citet{zhao2025weaktostrong} invert this for attacks, showing that logit arithmetic between small models steers large models at $>$99\% ASR.
-Our adversary is a learned, black-box variant: a 3B model steers an 8B model through dialogue alone, at much lower ASR but in a more realistic threat model.
-
-\paragraph{Deceptive alignment.}
-\citet{hubinger2024sleeper} demonstrate that deceptive behaviors persist through safety training.
-Our stealth adversary induces a related phenomenon in the victim: safety representations indicate an attack, but the behavioral response is compliance.
+\citet{burns2023weaktostrong} study weak-to-strong generalization.
+\citet{zhao2025weaktostrong} achieve $>$99\% ASR via logit arithmetic, requiring white-box access.
+Our adversary is a black-box, learned variant: a 3B model steers an 8B model through dialogue alone, at much lower ASR but in a more realistic threat model.
 
 % ============================================================
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{What Is Novel}
+\subsection{Answering the Question}
 
-The primary contribution is the empirical demonstration that the representation-behavior gap---proposed theoretically by \citet{wu2026knowingwithoutacting} and demonstrated with white-box optimization by \citet{bailey2024obfuscated}---arises naturally from black-box adversarial self-play.
-The multi-turn logit lens visualization, showing refusal erosion exclusively at layer~31 across conversation turns, is to our knowledge the first such analysis.
-The persistent SAE feature finding, showing convergence across two independent analyses (redirection and stability), provides a mechanistic fingerprint of the adversary's learned strategy.
+We asked: what happens inside a language model when it is being jailbroken?
+Our observations compose into the following characterization, specific to learned multi-turn attacks at moderate success rates:
 
-\subsection{What Is Not Conclusive}
+\begin{enumerate}[leftmargin=*]
+  \item The victim detects the attack from the first turn, broadly across all layers. Detection accuracy is high (0.97 AUC). The model ``knows'' something is wrong.
+  \item The refusal \emph{representation}---projection onto the refusal direction---collapses after a single turn. The model's internal posture shifts rapidly, even before it complies.
+  \item The compliance \emph{decision}---the output-level choice between refusal and compliance tokens---erodes gradually across subsequent turns, localized entirely to the final transformer layer.
+  \item A sparse set of SAE features co-occurs with successful jailbreaks across rounds, suggesting partly recurrent patterns in how the victim processes adversarial input.
+\end{enumerate}
 
-The stealth behavioral result is marginal ($p=0.061$, significant in 1 of 3 seeds).
-We cannot claim that stealth training reliably helps adversaries evade hardening defenses.
-The SAE analyses are correlational; without causal interventions (clamping features and measuring behavioral change), we cannot confirm the identified features are mechanistically involved.
-All experiments use Llama-family models at small scale (3B/8B); generalization to larger models or other architectures is untested.
+The central pattern is a \textbf{temporal dissociation}: the model's representations shift early and fast, while its behavior changes late and slow.
+The model continues to refuse for several turns after its internal refusal posture has already collapsed.
+Then behavior catches up.
 
-\subsection{Implications}
+\subsection{What We Have Not Shown}
+\label{sec:not_shown}
 
-Our findings suggest that representation-based safety monitors---while achieving excellent detection accuracy---should not be assumed to prevent harmful outputs.
-A model that ``knows'' it is under attack may still comply.
-Monitors that flag suspicious conversations are valuable for alerting operators, but they should be coupled with output-level filters rather than relied upon as the sole safety mechanism.
-The persistent features identified in Section~\ref{sec:sae} offer a potential path toward targeted defenses, but the high background feature turnover (75\%) suggests that patching specific features may redirect rather than eliminate attacks.
-
-\subsection{Limitations}
+This characterization is observational.
+We have not established:
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Scale}: 3B attacking 8B. Whether the same dynamics hold at frontier scale is unknown.
-  \item \textbf{Model family}: Llama only. Cross-architecture replication is needed.
-  \item \textbf{Low ASR}: 18--26\% is far below automated red-teaming baselines \citep{pavlova2024goat, russinovich2025crescendo}. The mechanistic analyses may not capture what happens during more effective attacks.
-  \item \textbf{No causal interventions}: Feature analyses are correlational. Activation patching and feature clamping are needed.
-  \item \textbf{Marginal stealth effect}: $p=0.061$ pooled, driven by one seed.
-  \item \textbf{SAE fidelity}: Learned feature decompositions may not correspond to causally meaningful concepts.
+  \item \textbf{Causality.} We observe that the refusal signal at layer~31 erodes during successful jailbreaks, but we have not shown that this erosion \emph{causes} compliance. The erosion could be a downstream consequence of an earlier causal change we do not observe.
+  \item \textbf{Generality across attack types.} Our adversary achieves 18--26\% ASR via learned conversational strategies. Stronger attacks---GOAT \citep{pavlova2024goat} at 97\%, logit arithmetic \citep{zhao2025weaktostrong} at $>$99\%---may exploit entirely different internal dynamics. Our findings should be understood as describing one regime of jailbreaking, not a universal theory.
+  \item \textbf{Generality across models.} All experiments use Llama-family models at small scale (3B/8B). Cross-architecture and cross-scale replication is needed.
+  \item \textbf{Mechanistic explanation of the SAE features.} Without interpretable feature labels or causal interventions, the persistent SAE features are correlational markers, not explanations.
 \end{itemize}
+
+\subsection{Toward Causal Evidence}
+\label{sec:toward_causal}
+
+The logit lens finding---that the compliance decision lives at layer~31 and erodes across turns---is the strongest candidate for causal follow-up.
+A direct test: \textbf{clamp the refusal direction at layer~31} (following \citet{arditi2024refusal}) during multi-turn adversarial conversations and measure whether ASR changes.
+
+\begin{itemize}[leftmargin=*]
+  \item If clamping the refusal direction at layer~31 causes immediate compliance (bypassing multi-turn erosion), that would confirm the adversary's strategy is specifically eroding this direction, and the multi-turn dynamics we observe are causal.
+  \item If clamping does not change ASR, that would suggest the compliance decision depends on additional factors not captured by the refusal direction---a finding that would be equally informative.
+\end{itemize}
+
+This experiment is computationally cheap (the refusal direction is already extracted; a single-GPU day would suffice) and would convert the strongest correlational finding into a causal claim.
+Similarly, clamping the persistent SAE features (F858, F5209) to zero and measuring behavioral change would test whether these features are mechanistically involved.
+
+\subsection{Implications for Safety Monitoring}
+
+Even at the observational level, the pattern of ``detection without prevention'' has practical implications.
+Representation-based safety monitors---including probes, SAE classifiers, and refusal direction detectors---achieve high detection accuracy in our setting (0.97 AUC).
+But the victim model itself has access to the same representations and still complies.
+This suggests that monitors which \emph{flag} suspicious conversations for human review are more appropriate than monitors that assume detection will lead to prevention.
+The 0.97 AUC probe is a strong alarm; it is not an effective guardrail.
+
+\subsection{The Stealth Result in Context}
+
+The stealth adversary shows a marginal advantage against a hardening victim (+3.1~pp, $p=0.061$) but no advantage against a frozen victim.
+This is much weaker than the white-box evasion of \citet{bailey2024obfuscated}, reflecting the constrained black-box threat model.
+We do not foreground this result as a main finding.
+It is directionally consistent with the hypothesis that safety monitors reveal exploitable structure, but it does not confirm it.
+
+\subsection{Relationship to Concurrent Work}
+
+\citet{wu2026knowingwithoutacting} provide causal evidence for the Disentangled Safety Hypothesis via double-dissociation experiments on static inputs.
+Our observations extend their hypothesis to the dynamic setting---showing that the dissociation unfolds gradually across conversation turns, with representations and behavior changing on different timescales---but with weaker (correlational) evidence.
+We view our work as complementary: their causal experiments establish the phenomenon; our observations characterize its temporal dynamics under adversarial pressure.
 
 % ============================================================
 \section{Conclusion}
 
-We studied the internal dynamics of an 8B language model under multi-turn adversarial pressure from a DPO-trained 3B adversary.
-The victim's representations detect the attack with near-perfect accuracy from the first turn, yet it complies at rates of 18--26\%.
-The compliance decision is localized to the final transformer layer, where the refusal signal erodes gradually across conversation turns, while safety representations remain intact at all layers.
-The adversary repeatedly exploits a small set of persistent SAE features, suggesting partly architectural vulnerabilities.
+We asked what happens inside a language model when it is being jailbroken through multi-turn conversation, and arrived at a characterization: the victim detects the attack broadly across all layers from the first turn, but the compliance decision is localized to the final layer, where the refusal signal erodes gradually across turns.
+The refusal representation collapses fast; the behavioral decision erodes slowly.
+The model knows it is being attacked and keeps refusing---until it doesn't.
 
-These findings demonstrate that safety representations and safety behavior can dissociate under adversarial pressure: the model knows it is being attacked but does not act on that knowledge.
-This gap between knowing and acting is a fundamental challenge for representation-based safety monitoring.
+This characterization is observational, not causal.
+We have described the temporal pattern of compliance erosion but not proven that the observed changes drive the outcome.
+Targeted causal experiments---particularly refusal-direction clamping at layer~31---are the natural next step.
+
+The broader finding---that detection does not entail prevention, and that representations and behavior can be on different timescales under adversarial pressure---is relevant to any safety approach that assumes monitoring internal states will translate to behavioral control.
+The victim model in our experiments is an existence proof that it does not.
 
 % ============================================================
 \section*{Acknowledgments}
 This work was supported by the Danish Technical University (DTU) visiting researcher program at Lawrence Berkeley National Laboratory.
-Experiments were conducted on Vast.ai GPU instances.
+Experiments were conducted on Vast.ai consumer GPU instances for approximately \$100 total compute.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
