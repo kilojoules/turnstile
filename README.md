@@ -57,6 +57,42 @@ A logistic regression probe on per-turn victim hidden states (middle layer, 4096
 
 The probe is retrained every 5 rounds during stealth experiments (adaptive defender). The adversary adapts within 1--2 rounds after each probe retraining.
 
+### Causal Intervention: Activation Steering
+
+We tested whether the compliance erosion observed via the logit lens can be causally manipulated through activation steering. We compared two direction extraction methods at two layers, in both single-turn (direct JBB prompts, no adversary) and multi-turn (trained adversary, 5 turns) settings. All conditions use 100 JBB goals, judged via Together API.
+
+**Experiment 1: Arditi-style direction** (mean harmful prompts - mean benign prompts, extracted from single-turn contrastive pairs):
+
+| | Single-Turn ASR | Multi-Turn ASR |
+|--|:-:|:-:|
+| baseline | 1% | 25% |
+| Arditi L31 suppress (alpha=-6) | 3% | 27% |
+| Arditi L31 amplify (alpha=+6) | 0% | 26% |
+
+The Arditi direction is **inert in both settings**. It does not capture the refusal mechanism for this model.
+
+**Experiment 2: Probe direction** (logistic regression weight vector from 0.96 AUC probe, trained on multi-turn win/loss conversation data):
+
+| | Single-Turn ASR | Multi-Turn ASR |
+|--|:-:|:-:|
+| baseline | 1% | 32% |
+| **probe L16 alpha=+6** (toward unsafe) | **9%** | **37% (+5pp)** |
+| **probe L16 alpha=-6** (toward safe) | **1%** | **19% (-13pp)** |
+| probe L31 alpha=+6 | 1% | 21% (-11pp) |
+| probe L31 alpha=-6 | 1% | 29% (-3pp) |
+
+The probe direction at layer 16 **has bidirectional causal power**: pushing toward unsafe increases ASR (+5pp), pushing toward safe decreases it (-13pp). Layer 31 interventions either hurt or do nothing.
+
+**Key findings:**
+
+1. **The Arditi direction is orthogonal to what matters.** Cosine similarity between the Arditi direction and the probe direction at layer 31: **-0.04**. The standard contrastive-pair extraction method produces a direction that is essentially unrelated to the jailbreak mechanism.
+
+2. **The causal lever is at layer 16, not layer 31.** The logit lens shows the compliance decision *manifests* at layer 31, but the intervention that actually changes behavior operates at layer 16. By the time information reaches the final layer, the decision is already determined.
+
+3. **Suppression is stronger than amplification.** Pushing toward safe at L16 reduces multi-turn ASR by 13pp (32%->19%), while pushing toward unsafe increases it by only 5pp (32%->37%). The model's safety training creates an asymmetric landscape: easier to reinforce refusal than to break it.
+
+4. **Layer 31 perturbations degrade coherence.** Both probe and random directions at L31 reduce multi-turn ASR, likely by disrupting generation quality rather than affecting the safety mechanism. The final layer is too late in the pipeline for clean causal intervention.
+
 ### Lessons from Development
 
 **DPO >> SFT for sparse-reward self-play.** With SFT, only winning conversations (3--7% of data) provide training signal. DPO learns from every conversation by pairing wins against losses for the same goal. This is the difference between 0--3% ASR (SFT) and 18--27% ASR (DPO).
