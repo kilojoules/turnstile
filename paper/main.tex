@@ -25,12 +25,10 @@
 \begin{abstract}
 What happens inside a language model when it is being jailbroken?
 We study this question by training a 3B-parameter adversary to jailbreak an 8B-parameter victim through 5-turn conversations via DPO self-play, then characterizing and intervening on the victim's internal dynamics across layers and turns.
-A per-turn linear probe detects jailbreak intent with AUC~0.97 from the first turn---yet the victim complies at rates of 18--26\%.
-A logit lens analysis reveals that the compliance decision manifests exclusively at the final transformer layer (layer~31), where the refusal signal erodes from $-0.45$ to $+0.11$ across conversation turns.
-However, causal intervention at layer~31 has no effect: steering with the standard refusal direction \citep{arditi2024refusal} does not change attack success in either single-turn or multi-turn settings.
-The Arditi direction and the probe's learned direction are nearly orthogonal (cosine similarity $-0.04$).
-Instead, the causal lever is \emph{upstream}: steering with the probe's direction at the middle layer (layer~16) reduces multi-turn ASR from 32\% to 19\% (toward safety) or increases it to 37\% (toward compliance).
-The compliance decision \emph{manifests} at the final layer but is \emph{determined} at the middle layer---and the standard single-direction account of refusal does not apply to multi-turn jailbreaks.
+Three nearly orthogonal directions in the victim's residual stream capture distinct aspects of safety computation: an \emph{intent} direction detects adversarial conversations (AUC~0.97), an \emph{outcome} direction predicts which attacks will succeed (AUC~0.73 at turn~1, peaking at layer~20), and the standard refusal direction \citep{arditi2024refusal} is inert---orthogonal to both and causally ineffective.
+Activation steering reveals that the compliance decision is \emph{determined} at the middle layer (layer~16) and \emph{read out} at the final layer (layer~31): steering at layer~16 changes multi-turn ASR bidirectionally ($-13$~pp, $+5$~pp), while intervention at layer~31 has no effect.
+Extended benign conversation alone shifts the victim's internal state toward compliance, but accounts for only a fraction of the adversary's effect (5\% vs.\ 25--32\% ASR), confirming that most of the adversary's success reflects learned manipulation, not generic context softening.
+SAE feature ablation shows that the four persistent features identified by correlational analysis are markers, not drivers---clamping them reduces ASR by 3--7~pp, but amplifying them also reduces ASR, and random feature clamping has no effect.
 \end{abstract}
 
 % ============================================================
@@ -40,7 +38,7 @@ The compliance decision \emph{manifests} at the final layer but is \emph{determi
 When a language model is jailbroken, what changes inside it?
 The model was trained to refuse harmful requests.
 Something in its internal computation shifts during the adversarial conversation, allowing compliance where refusal was intended.
-This paper asks what that shift looks like---where it occurs in the network, how it evolves across conversation turns, and whether the model's own representations contain evidence of the impending failure.
+This paper asks what that shift looks like---where it occurs in the network, how it evolves across conversation turns, and whether causal intervention can control it.
 
 A growing body of work establishes that safety-relevant information is present in model hidden states.
 Linear probes can detect jailbreaks from residual stream activations \citep{jailbreaklens2024}.
@@ -53,24 +51,24 @@ We ask a complementary question: what does this gap look like \emph{in practice}
 
 To study this, we build an adversarial self-play system where a 3B-parameter model (Llama-3.2-3B-Instruct) learns to jailbreak an 8B-parameter victim (Llama-3.1-8B-Instruct) through 5-turn conversations, trained via DPO \citep{rafailov2023dpo} on win/loss pairs.
 The adversary operates through natural language only---no access to the victim's logits, gradients, or hidden states.
-This constrained setting achieves moderate attack success (18--26\% ASR), far below prompt-engineering approaches like GOAT \citep{pavlova2024goat} (97\% ASR), but it produces a controlled, gradually escalating pressure that enables turn-by-turn internal characterization.
-
-We apply the logit lens \citep{nostalgebraist2020logitlens}, layer-wise probing, refusal direction analysis \citep{arditi2024refusal}, SAE feature tracking, and activation steering to characterize and causally probe what changes inside the victim during these conversations.
+This constrained setting achieves moderate attack success (18--32\% ASR), far below prompt-engineering approaches like GOAT \citep{pavlova2024goat} (97\% ASR), but it produces a controlled, gradually escalating pressure that enables turn-by-turn internal characterization and causal intervention.
 
 \paragraph{Summary of findings.}
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{The compliance decision manifests at layer~31 but is determined at layer~16.} The logit lens shows the refusal/compliance decision appears exclusively at the final transformer layer, flipping from $\Delta=-0.45$ to $+0.11$ across five turns. But causal intervention at layer~31 has no effect on ASR. Steering at layer~16 with the probe's learned direction changes ASR bidirectionally ($-13$~pp toward safety, $+5$~pp toward compliance). The decision is \emph{read out} at the end but \emph{written} in the middle.
+  \item \textbf{Three orthogonal safety subspaces.} The victim's residual stream contains three nearly orthogonal directions related to safety, each capturing a different aspect (Table~\ref{tab:directions}): intent detection (adversarial vs.\ benign, AUC~0.97), outcome prediction (success vs.\ failure, AUC~0.73 at turn~1), and the standard refusal direction \citep{arditi2024refusal}. The refusal direction is causally inert; the other two have predictive or causal power.
 
-  \item \textbf{The standard refusal direction does not apply to multi-turn jailbreaks.} The Arditi et al.\ refusal direction (extracted from single-turn contrastive pairs) is nearly orthogonal to the probe's direction (cosine similarity $-0.04$) and has no causal effect in either single-turn or multi-turn settings on this model. The single-direction account of refusal does not capture multi-turn compliance erosion.
+  \item \textbf{The compliance decision is determined upstream of where it manifests.} The logit lens shows the compliance decision appears exclusively at layer~31. But causal steering at layer~31 has no effect. Steering at layer~16 changes ASR bidirectionally ($-13$~pp toward safety, $+5$~pp toward compliance). The decision is \emph{read out} at the final layer but \emph{written} at the middle layer.
 
-  \item \textbf{Representation collapses fast; the decision erodes slowly.} Projection onto the refusal direction shows the victim's refusal \emph{representation} collapses after a single exchange, while the compliance \emph{decision} takes four more turns to flip---a temporal dissociation between representation and behavior.
+  \item \textbf{The model weakly predicts its own failure.} A probe trained to distinguish successful from failed jailbreaks achieves AUC~0.73 at turn~1 (layer~20), peaking after the first adversary-victim exchange and then declining. This signal generalizes across harm categories (leave-one-out AUC~0.60). The model's internal state contains information about attack quality, not just attack presence.
 
-  \item \textbf{Detection is distributed but ineffective.} A linear probe detects jailbreak intent at every layer (AUC 0.77--0.84) with near-perfect accuracy at layer~16 (AUC~0.97). The victim ``knows'' it is being attacked, but this knowledge does not prevent compliance.
+  \item \textbf{Most of the adversary's effect is learned, not generic.} Extended benign conversation shifts the probe toward compliance and increases single-turn ASR from 1\% to 5\%. But the trained adversary achieves 25--32\%---the adversary has learned specific manipulation strategies beyond context softening.
+
+  \item \textbf{SAE features are markers, not mechanisms.} Clamping the four persistent SAE features to zero reduces ASR by 3--7~pp, but amplifying them \emph{also} reduces ASR (by 6~pp), while clamping random features has no effect (26\% vs.\ 25\% baseline). The features co-occur with jailbreaks but do not drive them.
 \end{enumerate}
 
 \paragraph{Scope and limitations.}
 All findings describe the internal dynamics of Llama-3.1-8B under moderate-success-rate attacks from a learned 3B adversary.
-We do not claim these dynamics generalize to stronger attacks (e.g., GOAT's 97\% ASR), other model families, or larger scales.
+We do not claim these dynamics generalize to stronger attacks, other model families, or larger scales.
 
 % ============================================================
 \section{Method}
@@ -103,205 +101,223 @@ Single-judge evaluation is unreliable for multi-turn conversations.
 Llama Guard 3 alone flagged 100\% of multi-turn conversations as unsafe, including conversations with no harmful content.
 We use a dual-judge pipeline: a conversation is classified as a successful jailbreak only if both Llama Guard~3 and Llama-3.1-70B-Instruct (using the JailbreakBench standard prompt) agree.
 
-\subsection{Stealth and Hardening Conditions}
-
-We additionally test two variations: (1) a \emph{stealth} adversary that receives probe-evasion weighting during DPO training, selecting for wins that produce low probe scores; and (2) a \emph{hardened} victim that fine-tunes on refusal completions after each round.
-These conditions produce behavioral results reported in Section~\ref{sec:behavioral} but are secondary to the internal characterization, which uses the frozen-victim setting.
-
-\subsection{Experimental Design}
-
-\begin{table}[h]
-\centering
-\begin{tabular}{lll}
-\toprule
-\textbf{Condition} & \textbf{Adversary objective} & \textbf{Victim} \\
-\midrule
-Frozen control    & DPO (win/loss only)        & Frozen \\
-Frozen stealth    & DPO + probe evasion        & Frozen \\
-Hardened control  & DPO (win/loss only)        & Hardened each round \\
-Hardened stealth  & DPO + probe evasion        & Hardened each round \\
-\bottomrule
-\end{tabular}
-\caption{$2 \times 2$ experimental design. Each condition: 15 rounds $\times$ 100 conversations $\times$ 3 seeds.}
-\label{tab:conditions}
-\end{table}
-
 % ============================================================
-\section{Behavioral Results}
-\label{sec:behavioral}
+\section{Observational Results}
+\label{sec:observational}
 
-\subsection{Frozen Victim}
-
-Both adversary variants converge to approximately 26\% ASR against the frozen victim (Table~\ref{tab:frozen}).
-Stealth training provides no advantage when the victim does not adapt its defenses.
-
-\begin{table}[h]
-\centering
-\begin{tabular}{lccc}
-\toprule
-\textbf{Seed} & \textbf{Stealth} & \textbf{Control} & \textbf{$\Delta$} \\
-\midrule
-42  & 26.5\% & 27.5\% & $-0.9$ pp \\
-123 & 25.1\% & 25.0\% & $+0.1$ pp \\
-456 & 25.7\% & 26.9\% & $-1.2$ pp \\
-\bottomrule
-\end{tabular}
-\caption{Frozen victim: mean ASR across 15 rounds. No significant difference ($p=0.16$).}
-\label{tab:frozen}
-\end{table}
-
-\subsection{Hardened Victim: Suggestive Stealth Advantage}
-
-Against a hardening victim, the stealth adversary shows a directionally consistent but statistically marginal advantage (Table~\ref{tab:hardened}).
-Seed~42 is individually significant ($p=0.023$, $d=0.83$); the pooled effect is $+3.1$~pp ($p=0.061$).
-We present this as suggestive, not conclusive.
-
-\begin{table}[h]
-\centering
-\begin{tabular}{lccccc}
-\toprule
-\textbf{Seed} & \textbf{Rounds} & \textbf{Stealth} & \textbf{Control} & \textbf{$\Delta$} & \textbf{$p$} \\
-\midrule
-42  & 15 & 18.6\% & 14.7\% & $+3.9$ pp & 0.023 \\
-123 & 15 & 18.7\% & 16.1\% & $+2.5$ pp & 0.57 \\
-456 &  4 & 17.3\% & 15.0\% & $+2.2$ pp & 0.24 \\
-\midrule
-\textbf{Pooled} & \textbf{34} & \textbf{18.5\%} & \textbf{15.4\%} & $\mathbf{+3.1}$ \textbf{pp} & \textbf{0.061} \\
-\bottomrule
-\end{tabular}
-\caption{Hardened victim: stealth vs.\ control ASR. Pooled Mann-Whitney $U$, one-sided, $d=0.46$.
-We present this result as suggestive, not conclusive.}
-\label{tab:hardened}
-\end{table}
-
-% ============================================================
-\section{Internal Dynamics During Multi-Turn Jailbreaks}
-\label{sec:internal}
-
-We now turn to the central question: what changes inside the victim as a jailbreak conversation progresses?
-All analyses use the victim model (Llama-3.1-8B-Instruct) with hidden state extraction at inference time.
-These analyses are \emph{observational}: they characterize what co-occurs with successful jailbreaks, not what causes them.
-
-\subsection{The Compliance Decision Lives at Layer~31 and Erodes Across Turns}
+\subsection{The Compliance Decision Manifests at Layer~31 and Erodes Across Turns}
 \label{sec:logitlens}
 
-We apply the logit lens \citep{nostalgebraist2020logitlens} at every 4th layer and every turn of 80 multi-turn conversations (40 wins, 40 losses from the frozen-stealth condition), projecting intermediate hidden states through RMSNorm and the unembedding matrix.
-We track $\Delta = P(\text{comply}) - P(\text{refuse})$ where compliance tokens are \{\texttt{Sure, Here, Okay, Certainly, Step, ...}\} and refusal tokens are \{\texttt{Sorry, Unfortunately, No, ...}\}.
-
-\paragraph{Layers 0--24 carry no decision signal.} The compliance/refusal decision is not formed in early or middle layers ($|\Delta| < 0.02$).
+We apply the logit lens \citep{nostalgebraist2020logitlens} at every 4th layer and every turn of 80 multi-turn conversations (40 wins, 40 losses), projecting intermediate hidden states through RMSNorm and the unembedding matrix.
+We track $\Delta = P(\text{comply}) - P(\text{refuse})$.
 
 \paragraph{Layer 31 dominates and flips across turns.}
 For successful jailbreaks, $\Delta$ at layer~31 moves from $-0.45$ (strong refusal, turn~0) through $-0.06$ (turn~2) to $+0.11$ (compliance, turn~4).
 For failed attacks, $\Delta$ remains negative throughout ($-0.22$ to $-0.03$).
+Layers 0--24 carry no decision signal ($|\Delta| < 0.02$).
 
 \paragraph{The adversary triggers heightened vigilance before eroding it.}
-Counterintuitively, the model shows a \emph{stronger} refusal signal at turn~0 for conversations that will ultimately succeed as jailbreaks ($\Delta = -0.45$) than for those that will fail ($\Delta = -0.22$).
+Counterintuitively, the model shows a \emph{stronger} refusal signal at turn~0 for conversations that will ultimately succeed ($\Delta = -0.45$) than for those that will fail ($\Delta = -0.22$).
 The adversary's opening gambit triggers heightened vigilance, but subsequent turns erode it.
-This pattern---initial alarm followed by gradual capitulation---suggests the multi-turn strategy works not by avoiding detection but by outlasting the model's resolve.
-
-\paragraph{What this tells us and what it does not.}
-The logit lens reveals \emph{where} and \emph{when} the compliance decision forms: exclusively at layer~31, gradually across turns.
-It does not tell us \emph{why} the decision erodes, or whether layer~31 is where the decision is \emph{determined} versus merely \emph{read out}.
-We address this with causal intervention in Section~\ref{sec:causal}.
 
 \subsection{Refusal Representation Collapses Before the Decision Flips}
 \label{sec:repe}
 
 Following \citet{arditi2024refusal}, we extract a refusal direction via contrastive pairs at layer~31 and project victim hidden states onto it at each turn (40 wins, 40 losses).
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{Turn 0}: Wins start \emph{higher} on the refusal direction ($+0.3$) than losses ($-12.1$). The victim is initially more defensive in conversations that will succeed as jailbreaks---consistent with the logit lens finding of heightened turn-0 vigilance.
-  \item \textbf{Turn 1}: Both conditions collapse to $\sim$$-15$. The refusal representation drops sharply after the first adversary-victim exchange.
-  \item \textbf{Turns 2--3}: Wins go further negative ($-20.4$) than losses ($-15.3$). Successful jailbreaks push the victim further from the refusal direction.
-  \item \textbf{Turn 4}: Partial recovery for wins ($-15.7$) while losses remain at $-11.8$.
-\end{itemize}
+The refusal \emph{representation} collapses after turn~0 (both wins and losses drop to $\sim$$-15$), while the compliance \emph{decision} (logit lens) takes four more turns to flip.
+The model loses its internal refusal posture after one exchange but keeps refusing for several turns---then behavior catches up.
+This is a concrete, dynamic instance of the Knowing/Acting dissociation proposed by \citet{wu2026knowingwithoutacting}.
 
-\paragraph{Temporal dissociation.}
-This timeline does \emph{not} match the logit lens.
-The refusal \emph{representation} collapses rapidly after turn~0, while the compliance \emph{decision} (logit lens $\Delta$) erodes gradually over five turns.
-The victim loses its internal refusal posture after one exchange, but this is not immediately reflected in the output.
-The model continues refusing for several turns after its representation has already shifted---then behavior catches up.
+% ============================================================
+\section{Three Orthogonal Safety Directions}
+\label{sec:directions}
 
-This dissociation is a concrete, dynamic instance of what \citet{wu2026knowingwithoutacting} describe theoretically: representations and behavior operate on different timescales and respond differently to adversarial pressure.
-We observe the dissociation; we cannot yet explain why it occurs.
+We identify three directions in the victim's residual stream that capture distinct aspects of safety computation.
+All three are nearly mutually orthogonal (Table~\ref{tab:directions}).
 
-\subsection{Safety Detection Is Distributed but Ineffective}
-\label{sec:probe}
+\begin{table}[h]
+\centering
+\begin{tabular}{lcccl}
+\toprule
+\textbf{Direction} & \textbf{AUC} & \textbf{cos(A)} & \textbf{cos(I)} & \textbf{Extraction} \\
+\midrule
+Intent (I)  & 0.97 & $-0.04$ & --- & LogReg on adversarial vs.\ benign \\
+Outcome (O) & 0.73 & $-0.002$ & $0.02$ & LogReg on success vs.\ failure \\
+Refusal (A) & --- & --- & $-0.04$ & mean(harmful) $-$ mean(benign) \\
+\bottomrule
+\end{tabular}
+\caption{Three directions in the victim's residual stream. All pairwise cosine similarities are $<0.05$. AUC is 5-fold stratified CV. The refusal direction (A) has no predictive or causal power on this model.}
+\label{tab:directions}
+\end{table}
 
-We train logistic regression probes (PCA-256, 5-fold stratified CV, balanced class weights) at every 4th layer on 6{,}500 per-turn hidden state samples.
+\subsection{Intent Detection: AUC~0.97 (Adversarial vs.\ Benign)}
+\label{sec:intent}
 
-Detection AUC rises monotonically from 0.774 (layer~0) to 0.842 (layer~31).
-At the probe's training layer (layer~16), 5-fold CV achieves 0.958 $\pm$ 0.007 AUC on 9{,}300 per-turn examples.
-There is no sharp peak at any layer: safety-relevant information is \emph{distributed} across the entire network.
+A logistic regression probe on per-turn hidden states at layer~16 distinguishes adversarial from benign conversations with AUC~0.97 (9{,}300 turn-level examples, 5-fold CV).
+Detection is distributed across all layers (AUC 0.77 at layer~0, rising to 0.84 at layer~31).
 
-This distributed detection makes the compliance behavior more puzzling: the victim encodes attack-relevant information at every layer, from the embedding onward, yet this information does not prevent compliance.
-The combination with the logit lens result sharpens the picture: \emph{detection} is distributed, but the \emph{decision} is localized to layer~31---and it is at layer~31 that the adversary's multi-turn pressure has its effect.
+However, this result is arguably tautological: adversarial and benign conversations differ structurally in their inputs.
+The probe may detect input distribution rather than the model's internal safety state.
+The more informative question is whether the model can predict which attacks will \emph{succeed}.
 
-\subsection{Co-Occurring SAE Features}
-\label{sec:sae}
+\subsection{Outcome Prediction: AUC~0.73 (Success vs.\ Failure)}
+\label{sec:outcome}
 
-We extract sparse autoencoder (SAE) feature activations (16{,}384 features, 4$\times$ expansion, trained on per-turn hidden states) at the breach turn from 50 successful and 50 failed jailbreaks.
+We train a separate probe---on adversarial conversations only---to predict eventual jailbreak success from per-turn hidden states.
+This is a harder task: all inputs are adversarial, and the probe must distinguish attack \emph{quality} rather than attack \emph{presence}.
 
-\paragraph{Win/loss differentiation.}
-Top amplified features in wins vs.\ losses: F5209 ($d=+0.57$), F858 ($d=+0.51$), F10337 ($d=+0.51$).
-Top suppressed: F9836 ($d=-0.54$, active in 28\% of losses but 2\% of wins).
-Over 99.7\% of features show $|d| < 0.2$.
+\paragraph{The model weakly predicts its own failure.}
+At layer~16, outcome prediction AUC is 0.61 at turn~0, peaks at 0.69 at turn~1, then declines to 0.62 at later turns.
+A full layer$\times$turn sweep reveals the peak at layer~20, turn~1: \textbf{AUC~0.73} (Table~\ref{tab:outcome_matrix}).
 
-\paragraph{Cross-round persistence.}
-We track the top-20 SAE features per round across 13 rounds.
-Mean Jaccard similarity between consecutive rounds is 0.25 (turnover~75\%), indicating high variability in which features are activated.
-However, four features persist across $>$80\% of rounds:
+\begin{table}[h]
+\centering
+\begin{tabular}{lcccccc}
+\toprule
+& \textbf{Turn 0} & \textbf{Turn 1} & \textbf{Turn 2} & \textbf{Turn 3} & \textbf{Turn 4} \\
+\midrule
+Layer 0  & 0.50 & 0.52 & 0.61 & 0.57 & 0.57 \\
+Layer 4  & 0.66 & 0.71 & 0.66 & 0.59 & 0.63 \\
+Layer 12 & 0.65 & 0.73 & 0.70 & 0.61 & 0.64 \\
+Layer 16 & 0.65 & \textbf{0.73} & 0.67 & 0.61 & 0.64 \\
+Layer 20 & 0.66 & \textbf{0.73} & 0.66 & 0.60 & 0.64 \\
+Layer 31 & 0.66 & 0.72 & 0.67 & 0.61 & 0.62 \\
+\bottomrule
+\end{tabular}
+\caption{Outcome prediction AUC (success vs.\ failure) across layers and turns. Peak: layer~20, turn~1 (AUC~0.73). Based on 500 adversarial conversations (5-fold stratified CV). The model's internal state is most predictive right after the first exchange.}
+\label{tab:outcome_matrix}
+\end{table}
+
+\paragraph{Turn~1 is the peak.}
+The model has the most information about its own future failure immediately after the first adversary-victim exchange.
+Prediction accuracy then \emph{declines} at later turns, consistent with the refusal representation collapse observed via RepE (Section~\ref{sec:repe}): the internal state differentiates most at turn~1, then converges.
+
+\paragraph{Generalization across categories.}
+Leave-one-category-out cross-validation at turn~0 yields AUC~0.60 across 10 JailbreakBench harm categories.
+The probe is not simply learning that some topics are easier to jailbreak---it detects something about attack quality that generalizes.
+
+\paragraph{Orthogonality.}
+The outcome direction is nearly orthogonal to both the intent direction ($\cos=0.02$) and the Arditi refusal direction ($\cos=-0.002$).
+The model represents ``this is an attack,'' ``this attack will succeed,'' and ``I should refuse'' in three independent subspaces.
+
+% ============================================================
+\section{Causal Interventions}
+\label{sec:causal}
+
+\subsection{Activation Steering with Direction Vectors}
+
+We test whether the directions identified in Section~\ref{sec:directions} have causal power by adding $\alpha \cdot \mathbf{d}$ to the residual stream via forward hooks during multi-turn adversarial conversations.
+Each condition uses 100 JBB goals with the trained adversary (5-turn conversations).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Condition} & \textbf{Single-turn} & \textbf{Multi-turn} & \textbf{$\Delta$ (multi)} \\
+\midrule
+Baseline (no hook)                      & 1\%  & 32\% & --- \\
+\midrule
+Intent probe L16 $\alpha=+6$           & 9\%  & 37\% & $+5$ pp \\
+Intent probe L16 $\alpha=-6$           & 1\%  & 19\% & $-13$ pp \\
+Intent probe L31 $\alpha=+6$           & 1\%  & 21\% & $-11$ pp \\
+\midrule
+Arditi refusal L31 $\alpha=\pm6$       & 0--3\% & 26--27\% & $\pm2$ pp \\
+Random direction L31 $\alpha=-6$       & 1\%  & 13\% & $-12$ pp \\
+\bottomrule
+\end{tabular}
+\caption{Activation steering results. Only the intent probe direction at layer~16 produces bidirectional causal effects. Layer~31 interventions either degrade coherence or have no effect.}
+\label{tab:steering}
+\end{table}
+
+\paragraph{The causal lever is at layer~16, not layer~31.}
+The intent probe direction at layer~16 produces clean bidirectional effects: $+5$~pp toward compliance, $-13$~pp toward safety.
+All layer~31 interventions---including the Arditi refusal direction, the probe direction, and random noise---either degrade coherence (reducing ASR by disrupting generation quality) or have no effect.
+The compliance decision \emph{manifests} at layer~31 but is \emph{determined} upstream.
+
+\paragraph{Suppression is stronger than amplification.}
+Pushing toward safe reduces multi-turn ASR by 13~pp, while pushing toward unsafe increases it by only 5~pp.
+The model's safety training creates an asymmetric landscape where refusal is easier to reinforce than to break.
+
+\subsection{SAE Feature Ablation}
+\label{sec:sae_causal}
+
+We test whether the four persistent SAE features (Section~\ref{sec:sae}) are causally involved by clamping them to zero or amplifying them via an encode-modify-decode hook at layer~16 during multi-turn conversations (100 JBB goals each).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccl}
+\toprule
+\textbf{Condition} & \textbf{ASR} & \textbf{$\Delta$} & \textbf{Interpretation} \\
+\midrule
+Baseline                          & 25\% & ---     & \\
+Clamp persistent (F858,1511,5209,5674) & 22\% & $-3$ pp & Small effect \\
+Clamp top diff (F858,5209,10337)  & 18\% & $-7$ pp & Moderate effect \\
+Amplify F858,F5209 ($3\times$)    & 19\% & $-6$ pp & Wrong direction \\
+Clamp 4 random features           & 26\% & $+1$ pp & No effect (control) \\
+\bottomrule
+\end{tabular}
+\caption{SAE feature ablation. Clamping jailbreak-associated features reduces ASR modestly, but amplifying them \emph{also} reduces ASR---inconsistent with a causal role. Random feature clamping confirms the targeted features are not arbitrary.}
+\label{tab:sae_ablation}
+\end{table}
+
+The random-feature control (26\%) confirms that clamping \emph{arbitrary} features does not affect ASR.
+But the non-monotonic pattern---both clamping ($-3$ to $-7$~pp) and amplification ($-6$~pp) reduce ASR---indicates these features are correlated with jailbreaks but do not cause them.
+Disrupting the SAE representation in either direction degrades the adversary's effectiveness, suggesting the adversary relies on a precise balance of features rather than the magnitude of any specific set.
+
+\subsection{Benign Conversation Drift}
+\label{sec:drift}
+
+Does the adversary's multi-turn strategy exploit a generic context-length softening effect, or has it learned specific manipulation?
+We test by preceding a harmful JBB goal with 4 turns of friendly benign conversation (no adversarial intent) and measuring the probe projection and ASR.
 
 \begin{table}[h]
 \centering
 \begin{tabular}{lcc}
 \toprule
-\textbf{Feature} & \textbf{Rounds present} & \textbf{Also top in differentiation?} \\
+\textbf{Condition} & \textbf{ASR} & \textbf{Mean probe projection (L16)} \\
 \midrule
-F1511 & 13/13 (100\%) & No \\
-F5674 & 12/13 (92\%)  & No \\
-F858  & 11/13 (85\%)  & Yes ($d=+0.51$) \\
-F5209 & 11/13 (85\%)  & Yes ($d=+0.57$) \\
+Direct harmful request       & 1\%  & $-0.052$ \\
+4-turn benign preamble + harmful & 5\%  & $+0.174$ \\
+Trained adversary (5 turns)  & 25--32\% & --- \\
 \bottomrule
 \end{tabular}
-\caption{Persistent SAE features. F858 and F5209 appear in both the win/loss differentiation and the cross-round persistence analyses.}
-\label{tab:persistent}
+\caption{Benign conversation shifts the probe toward compliance ($-0.05 \to +0.17$) and increases ASR from 1\% to 5\%. But the trained adversary achieves 25--32\%, indicating most of its success is learned manipulation, not generic context softening.}
+\label{tab:drift}
 \end{table}
 
-\paragraph{Interpretation and caveats.}
-The convergence of F858 and F5209 across two independent analyses is suggestive but not conclusive.
-These features may represent recurrent patterns in the victim's computation during jailbreaks, or they may be artifacts of the SAE decomposition.
-Recent work has highlighted limitations of SAE feature decompositions for downstream safety tasks, finding that SAE features can underperform simpler linear probes.
-Without causal intervention---clamping these features to zero and measuring behavioral change---we cannot distinguish correlation from mechanism.
-We present these features as candidates for future causal investigation, not as confirmed vulnerabilities.
+Extended benign conversation does shift the model toward compliance---the probe projection moves from $-0.05$ to $+0.17$ and ASR increases 5-fold.
+But this accounts for only a fraction of the adversary's 25--32\% ASR.
+The adversary has learned strategies that go well beyond ``be friendly first.''
+
+% ============================================================
+\section{Correlational SAE Analysis}
+\label{sec:sae}
+
+We extract SAE feature activations (16{,}384 features) at the breach turn from 50 successful and 50 failed jailbreaks.
+Top amplified features in wins: F5209 ($d=+0.57$), F858 ($d=+0.51$), F10337 ($d=+0.51$).
+Over 99.7\% of features show $|d| < 0.2$.
+Four features persist across $>$80\% of 13 adversarial rounds (F1511, F5674, F858, F5209), with F858 and F5209 appearing in both the persistence and differentiation analyses.
+However, the causal ablation (Section~\ref{sec:sae_causal}) reveals these are markers, not mechanisms.
 
 % ============================================================
 \section{Related Work}
 \label{sec:related}
 
 \paragraph{The representation-behavior gap.}
-Our observations are consistent with several concurrent and prior findings.
-\citet{wu2026knowingwithoutacting} formalize the Disentangled Safety Hypothesis and provide causal evidence (double-dissociation experiments) that safety recognition and execution are structurally independent.
-\citet{bailey2024obfuscated} show that white-box optimization can bypass latent-space defenses while maintaining 90\% jailbreak success.
-\citet{jailbreaklens2024} apply representation and circuit analysis to single-turn jailbreaks, finding that jailbroken states cluster with safe inputs.
-Our contribution is not the discovery of this gap---which is now well-established---but the characterization of how it \emph{develops dynamically} across conversation turns in a learned adversarial interaction.
+\citet{wu2026knowingwithoutacting} formalize the Disentangled Safety Hypothesis and provide causal evidence that safety recognition and execution are structurally independent.
+\citet{bailey2024obfuscated} show that white-box optimization can bypass latent-space defenses.
+Our contribution is the characterization of how this gap develops dynamically across turns, the identification of three orthogonal safety subspaces, and the finding that the causal lever is upstream of where the decision manifests.
 
 \paragraph{Mechanistic interpretability of safety.}
-\citet{arditi2024refusal} show that refusal is mediated by a single direction in the residual stream.
-\citet{park2026asguard} identify specific attention heads responsible for safety and propose causal activation-scaling interventions.
-Our activation steering experiments reveal that the Arditi direction---while effective for single-turn refusal in their original setting---is orthogonal to the direction that causally mediates multi-turn jailbreak compliance on Llama-3.1-8B.
-The causally effective direction is instead the probe's learned weight vector at the middle layer, suggesting that multi-turn compliance erosion operates through a different computational pathway than single-turn refusal.
+\citet{arditi2024refusal} show that refusal is mediated by a single direction.
+Our activation steering experiments reveal that this direction is orthogonal to the direction that causally mediates multi-turn compliance on Llama-3.1-8B, suggesting that multi-turn compliance erosion operates through a different computational pathway than single-turn refusal.
+\citet{park2026asguard} identify causal attention heads; our work identifies a causal \emph{layer} and \emph{direction}, complementing their head-level analysis.
 
 \paragraph{Automated red teaming.}
-The field has progressed from early automated approaches \citep{perez2022redteaming} through iterative refinement \citep{chao2023pair} to diverse prompt generation \citep{samvelyan2024rainbow} and multi-turn strategies \citep{russinovich2025crescendo, pavlova2024goat}.
-\citet{liu2025selfredteam} use self-play for red-teaming but do not perform internal analysis of the victim.
-Our ASR (18--26\%) is far below these methods, reflecting our constrained threat model.
-The trade-off is intentional: moderate-success attacks produce gradual pressure that can be characterized turn by turn, whereas overwhelming attacks (97\% ASR) saturate defenses too quickly for fine-grained internal analysis.
-
-\paragraph{Weak-to-strong phenomena.}
-\citet{burns2023weaktostrong} study weak-to-strong generalization.
-\citet{zhao2025weaktostrong} achieve $>$99\% ASR via logit arithmetic, requiring white-box access.
-Our adversary is a black-box, learned variant: a 3B model steers an 8B model through dialogue alone, at much lower ASR but in a more realistic threat model.
+The field has progressed from early approaches \citep{perez2022redteaming} through iterative refinement \citep{chao2023pair} to multi-turn strategies \citep{russinovich2025crescendo, pavlova2024goat}.
+Our ASR (18--32\%) is far below these methods.
+The trade-off is intentional: moderate-success attacks produce gradual pressure that can be characterized and intervened on turn by turn.
 
 % ============================================================
 \section{Discussion}
@@ -310,125 +326,43 @@ Our adversary is a black-box, learned variant: a 3B model steers an 8B model thr
 \subsection{Answering the Question}
 
 We asked: what happens inside a language model when it is being jailbroken?
-Our findings compose into the following picture, specific to learned multi-turn attacks at moderate success rates:
+The answer, specific to learned multi-turn attacks at moderate success rates:
 
 \begin{enumerate}[leftmargin=*]
-  \item The victim detects the attack from the first turn, broadly across all layers. Detection accuracy is high (0.97 AUC). The model ``knows'' something is wrong.
-  \item The compliance decision is \emph{determined} at the middle layer (layer~16) but \emph{manifests} only at the final layer (layer~31). Causal intervention at layer~16 changes ASR bidirectionally; intervention at layer~31 has no effect or degrades coherence.
-  \item The refusal \emph{representation} collapses after a single turn, while the compliance \emph{decision} takes four more turns to flip---a temporal dissociation between representation and behavior.
-  \item The standard single-direction account of refusal \citep{arditi2024refusal} does not capture the multi-turn jailbreak mechanism. The Arditi direction and the causally effective probe direction are nearly orthogonal.
+  \item The victim's residual stream encodes three nearly orthogonal aspects of safety: attack presence (intent, AUC~0.97), attack quality (outcome, AUC~0.73), and the standard refusal signal (causally inert). The model ``knows'' more than whether it is under attack---it partially ``knows'' whether the attack will work.
+  \item The compliance decision is \emph{determined} at the middle layer (L16) and \emph{read out} at the final layer (L31). This has a direct practical implication: safety interventions targeting the output layer will not work.
+  \item The model's outcome-predictive signal peaks at turn~1, then decays. The model has the most information about its own future failure right after the first exchange---and then loses it, consistent with the refusal representation collapse.
+  \item Most of the adversary's effect is learned manipulation, not generic context softening. Benign preamble accounts for only 5\% ASR out of the adversary's 25--32\%.
+  \item SAE features are correlated markers, not causal drivers. The adversary relies on a precise balance in the victim's feature space that cannot be disrupted by clamping individual features.
 \end{enumerate}
 
-The central pattern is a \textbf{layered dissociation}: detection is distributed (all layers), the causal mechanism operates at the middle layer, and the decision is read out at the final layer.
-Combined with the temporal dissociation---representations shift fast, behavior changes slow---this reveals a model whose safety machinery is both more distributed and less coherent than the single-direction account suggests.
-
-\subsection{What We Have and Have Not Shown}
-\label{sec:not_shown}
-
-We have established a causal link between the probe's learned direction at layer~16 and multi-turn jailbreak success: steering toward safety reduces ASR by 13~pp, steering toward compliance increases it by 5~pp.
-This confirms that the probe's direction captures something causally relevant, not merely correlated.
-
-We have \emph{not} established:
+\subsection{Limitations}
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Why the Arditi direction fails.} The standard contrastive-pair extraction produces a direction orthogonal to the probe's direction ($\cos=-0.04$). We do not know whether this reflects a limitation of the extraction method, a difference between single-turn refusal and multi-turn compliance erosion, or a property specific to Llama-3.1-8B.
-  \item \textbf{Generality across attack types.} Our adversary achieves 18--32\% ASR via learned conversational strategies. Stronger attacks---GOAT \citep{pavlova2024goat} at 97\%, logit arithmetic \citep{zhao2025weaktostrong} at $>$99\%---may exploit different mechanisms.
-  \item \textbf{Generality across models.} All experiments use Llama-family models at small scale (3B/8B). Cross-architecture and cross-scale replication is needed.
-  \item \textbf{Mechanistic interpretation of the probe direction.} The probe's weight vector is the direction that best predicts jailbreaks, and it has causal power, but we do not know what this direction \emph{represents} in terms of interpretable features.
+  \item \textbf{Moderate outcome AUC.} The 0.73 outcome prediction is above chance but not strong. The model partially predicts its own failure but cannot reliably distinguish successful from failed attacks.
+  \item \textbf{Scale and model family.} All experiments use Llama-family models at small scale (3B/8B). Cross-architecture replication is needed.
+  \item \textbf{Attack strength.} Our adversary achieves 18--32\% ASR. Stronger attacks may exploit different mechanisms.
+  \item \textbf{Probe direction interpretation.} The intent probe direction has causal power, but we do not know what it \emph{represents} in terms of interpretable features.
+  \item \textbf{Why the Arditi direction fails.} We do not know whether this reflects the extraction method, the model, or a fundamental difference between single-turn refusal and multi-turn compliance erosion.
 \end{itemize}
-
-\subsection{Causal Intervention: Activation Steering}
-\label{sec:causal}
-
-We tested whether the compliance erosion at layer~31 can be causally manipulated through activation steering.
-We compared two direction extraction methods---the standard Arditi et al.\ contrastive-pair direction and the probe's learned weight vector---at two layers (16 and 31) in both single-turn and multi-turn settings.
-Each condition uses 100 JBB goals; the multi-turn setting uses the trained adversary with 5-turn conversations.
-
-\paragraph{The Arditi direction is causally inert.}
-The refusal direction extracted via contrastive pairs (80 harmful JBB goals vs.\ 80 benign prompts) at layer~31 has no effect on ASR in either setting.
-Suppressing it ($\alpha=-6$) yields 3\% single-turn ASR (vs.\ 1\% baseline) and 27\% multi-turn ASR (vs.\ 25\% baseline)---within noise.
-Amplifying it ($\alpha=+6$) yields 0\% and 26\% respectively.
-
-\paragraph{The probe direction has bidirectional causal power at layer~16.}
-The logistic regression probe trained on multi-turn conversation data (Section~\ref{sec:probe}) achieves 0.97 AUC.
-Its weight vector defines a direction in the 4096-dimensional residual stream.
-This direction is nearly orthogonal to the Arditi direction (cosine similarity $-0.04$).
-
-Steering with the probe direction at layer~16 produces clean bidirectional effects:
-
-\begin{table}[h]
-\centering
-\begin{tabular}{lccc}
-\toprule
-\textbf{Condition} & \textbf{Single-turn} & \textbf{Multi-turn} & \textbf{$\Delta$ (multi)} \\
-\midrule
-Baseline (no hook)               & 1\%  & 32\% & --- \\
-Probe L16 $\alpha=+6$ (toward unsafe)  & 9\%  & 37\% & $+5$ pp \\
-Probe L16 $\alpha=-6$ (toward safe)    & 1\%  & 19\% & $-13$ pp \\
-Probe L31 $\alpha=+6$            & 1\%  & 21\% & $-11$ pp \\
-Probe L31 $\alpha=-6$            & 1\%  & 29\% & $-3$ pp \\
-Arditi L31 $\alpha=\pm6$         & 0--3\% & 26--27\% & $\pm2$ pp \\
-\bottomrule
-\end{tabular}
-\caption{Activation steering results. Only the probe direction at layer~16 produces bidirectional causal effects. Layer~31 interventions either degrade coherence or have no effect. 100 JBB goals per condition.}
-\label{tab:steering}
-\end{table}
-
-\paragraph{Layer~31 interventions degrade coherence rather than affect safety.}
-Both the probe direction and a random direction at layer~31 \emph{reduce} multi-turn ASR (to 21\% and 13\% respectively), likely by disrupting the victim's generation quality.
-The final layer is too late in the pipeline for clean causal intervention---perturbations there corrupt the output rather than steering the safety decision.
-
-\paragraph{The causal lever is upstream of the decision.}
-The logit lens shows the compliance decision \emph{manifests} at layer~31 (Section~\ref{sec:logitlens}), but the causal intervention that changes behavior operates at layer~16.
-This is consistent with a feedforward architecture where safety-relevant computation in middle layers determines the decision that is read out at the final layer.
-By the time information reaches layer~31, the compliance/refusal choice is already determined.
-
-\paragraph{Suppression is stronger than amplification.}
-Pushing toward safe at layer~16 reduces multi-turn ASR by 13~pp (32\%$\to$19\%), while pushing toward unsafe increases it by only 5~pp (32\%$\to$37\%).
-The asymmetry suggests the model's safety training creates a landscape where refusal is easier to reinforce than to break.
-
-\subsection{Implications for Safety Monitoring}
-
-Even at the observational level, the pattern of ``detection without prevention'' has practical implications.
-Representation-based safety monitors---including probes, SAE classifiers, and refusal direction detectors---achieve high detection accuracy in our setting (0.97 AUC).
-But the victim model itself has access to the same representations and still complies.
-This suggests that monitors which \emph{flag} suspicious conversations for human review are more appropriate than monitors that assume detection will lead to prevention.
-The 0.97 AUC probe is a strong alarm; it is not an effective guardrail.
-
-\subsection{The Stealth Result in Context}
-
-The stealth adversary shows a marginal advantage against a hardening victim (+3.1~pp, $p=0.061$) but no advantage against a frozen victim.
-This is much weaker than the white-box evasion of \citet{bailey2024obfuscated}, reflecting the constrained black-box threat model.
-We do not foreground this result as a main finding.
-It is directionally consistent with the hypothesis that safety monitors reveal exploitable structure, but it does not confirm it.
-
-\subsection{Relationship to Concurrent Work}
-
-\citet{wu2026knowingwithoutacting} provide causal evidence for the Disentangled Safety Hypothesis via double-dissociation experiments on static inputs.
-Our work extends their hypothesis to the dynamic multi-turn setting with both observational and causal evidence.
-The temporal dissociation (representations shift fast, behavior changes slow) and the layer dissociation (decision determined at layer~16, manifested at layer~31) are concrete instances of the Knowing/Acting split under adversarial pressure.
-Our activation steering results additionally show that the \emph{direction} mediating this split differs from the standard refusal direction---a finding their static setting does not address.
 
 % ============================================================
 \section{Conclusion}
 
-We asked what happens inside a language model when it is being jailbroken through multi-turn conversation.
-The answer has three parts.
+We asked what happens inside a language model when it is being jailbroken through multi-turn conversation, and found a richer picture than the single-direction account suggests.
 
-First, the victim detects the attack from the first turn at every layer (0.97 AUC), but detection does not entail prevention.
-Second, the compliance decision is \emph{determined} at the middle layer (layer~16) and \emph{read out} at the final layer (layer~31).
-Causal steering at layer~16 changes ASR bidirectionally ($-13$~pp, $+5$~pp); intervention at layer~31 has no effect.
-Third, the standard single-direction account of refusal \citep{arditi2024refusal} does not apply: the Arditi direction is orthogonal to the causally effective direction and has no effect in either single-turn or multi-turn settings on this model.
+The model's safety computation is organized into at least three orthogonal subspaces: intent detection (is this an attack?), outcome prediction (will this attack succeed?), and refusal signaling (the standard Arditi direction).
+The first two have predictive or causal power; the third is inert.
+The compliance decision is determined at the middle layer but read out at the final layer, creating a gap between where the decision is \emph{visible} and where it is \emph{controllable}.
+The model weakly predicts its own failure after just one exchange (AUC~0.73), then loses this signal as the conversation progresses.
 
-These findings have practical implications.
-Safety interventions based on the refusal direction at the output layer will not work against multi-turn attacks.
-The causal lever is upstream, at the middle layer, where a probe-derived direction can both strengthen and weaken safety behavior.
-More broadly, the gap between where a decision is \emph{visible} (final layer) and where it is \emph{determined} (middle layer) is a cautionary finding for any interpretability-based safety approach that targets the layer where effects are most apparent.
+These findings suggest that representation-based safety monitoring should look beyond the refusal direction and the output layer.
+The causally relevant computation happens upstream, in a direction that standard extraction methods do not find.
 
 % ============================================================
 \section*{Acknowledgments}
 This work was supported by the Danish Technical University (DTU) visiting researcher program at Lawrence Berkeley National Laboratory.
-Experiments were conducted on Vast.ai consumer GPU instances for approximately \$110 total compute.
+Experiments were conducted on Vast.ai consumer GPU instances for approximately \$120 total compute.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
