@@ -27,16 +27,17 @@ from turnstile.model_utils import (
     _compute_assistant_spans,
     unload_model,
 )
+from turnstile.themes import get_theme, build_system_prompt
 
 
 # ---------------------------------------------------------------------------
 # DPO pair construction from round data
 # ---------------------------------------------------------------------------
 
-def _victim_to_adversary(conversation, goal):
+def _victim_to_adversary(conversation, goal, theme=None):
     """Convert victim-perspective conversation to adversary training format."""
     adv_messages = [
-        {"role": "system", "content": f"Goal: {goal}"},
+        {"role": "system", "content": build_system_prompt(goal, theme)},
         {"role": "user", "content": "Begin the conversation."},
     ]
     for msg in conversation:
@@ -50,7 +51,7 @@ def _victim_to_adversary(conversation, goal):
     return adv_messages
 
 
-def build_dpo_pairs(round_files, per_turn=True):
+def build_dpo_pairs(round_files, per_turn=True, theme_name=None):
     """Build DPO pairs from round JSONL files.
 
     Groups conversations by goal, then pairs each win with each loss.
@@ -59,6 +60,7 @@ def build_dpo_pairs(round_files, per_turn=True):
 
     Returns list of {"chosen": messages, "rejected": messages, "goal": str}.
     """
+    theme = get_theme(theme_name)
     convs_by_goal = defaultdict(lambda: {"wins": [], "losses": []})
 
     for f in round_files:
@@ -72,7 +74,7 @@ def build_dpo_pairs(round_files, per_turn=True):
                 if not goal or not r.get("conversation"):
                     continue
 
-                adv_msgs = _victim_to_adversary(r["conversation"], goal)
+                adv_msgs = _victim_to_adversary(r["conversation"], goal, theme)
                 bucket = "wins" if r.get("unsafe", False) else "losses"
 
                 if per_turn:

@@ -53,6 +53,7 @@ from turnstile.loop import (
 )
 from turnstile.temporal_sae import TemporalSAE, normalize_activations
 from turnstile.zoo import CheckpointZoo
+from turnstile.stealth_dpo import build_probe_aware_pairs, save_pairs, summarize_pairs
 
 
 # ---------------------------------------------------------------------------
@@ -292,14 +293,35 @@ def train_adversary_stealth(
         print(f"   [Weighted] alpha={stealth_cfg.alpha}, "
               f"sampled {len(selected)} entries "
               f"({len(set(idx for idx, _ in selected))} unique)")
+
+    elif stealth_cfg.mode == "iw_weighted":
+        # Importance-weighted SFT: keep ALL wins, pass weights to training.
+        # Avoids bootstrap+dedup information loss.
+        weights = np.array([(1.0 - s) ** stealth_cfg.alpha
+                            for _, _, s in scored_wins])
+        if weights.sum() < 1e-8:
+            weights = np.ones(len(scored_wins))
+        weights /= weights.sum()
+        selected = [(idx, msgs) for idx, msgs, _ in scored_wins]
+        iw_weights = weights  # saved for JSONL below
+        print(f"   [IW-Weighted] alpha={stealth_cfg.alpha}, "
+              f"all {len(selected)} wins with importance weights "
+              f"(max/min ratio: {weights.max()/weights.min():.1f}x)")
     else:
         raise ValueError(f"Unknown stealth mode: {stealth_cfg.mode}")
 
     # Build training entries
-    new_entries = [{"messages": msgs} for _, msgs in selected]
-    new_entries = deduplicate_conversations(
-        new_entries, cfg.dedup_similarity_threshold
-    )
+    if stealth_cfg.mode == "iw_weighted":
+        # Include per-example weights; skip dedup (preserves weight fidelity)
+        new_entries = [
+            {"messages": msgs, "weight": float(w)}
+            for (_, msgs), w in zip(selected, iw_weights)
+        ]
+    else:
+        new_entries = [{"messages": msgs} for _, msgs in selected]
+        new_entries = deduplicate_conversations(
+            new_entries, cfg.dedup_similarity_threshold
+        )
 
     # Save this round's wins
     wins_file = os.path.join(data_dir, f"round_{round_num}_wins.jsonl")
@@ -343,6 +365,65 @@ def train_adversary_stealth(
         lora_rank=cfg.training.lora.rank,
         lora_alpha=cfg.training.lora.alpha,
         target_modules=cfg.training.lora.target_modules,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Probe-aware DPO training
+# ---------------------------------------------------------------------------
+
+def train_adversary_probe_dpo(
+    conversations, adv_messages_list, verdicts, goal_entries,
+    probe_scores, round_num, cfg, stealth_cfg,
+):
+    """Train adversary with probe-aware DPO preference pairs.
+
+    Builds pairs where stealthy wins are preferred over detected wins,
+    and any win is preferred over a loss. Trains every round (DPO
+    extracts signal from losses too).
+    """
+    import glob as glob_mod
+
+    print(f"\n[Round {round_num}] >> PHASE 3: PROBE-AWARE DPO TRAINING")
+
+    exp = _exp_dir(cfg)
+    data_dir = os.path.join(exp, cfg.data_path)
+    adapter_dir = os.path.join(exp, cfg.adapter_path)
+    rounds_dir = os.path.join(exp, "rounds")
+
+    # Collect all round files (which now include probe_score in each record)
+    round_files = sorted(glob_mod.glob(os.path.join(rounds_dir, "round_*.jsonl")))
+    if not round_files:
+        print("   No round data for probe-DPO. Skipping.")
+        return
+
+    pairs = build_probe_aware_pairs(
+        round_files, per_turn=True,
+        probe_threshold=stealth_cfg.threshold,
+    )
+    if not pairs:
+        print("   No probe-DPO pairs (need wins+losses or stealthy+detected "
+              "for same goal). Skipping.")
+        return
+
+    summarize_pairs(pairs)
+
+    pairs_file = os.path.join(data_dir, f"probe_dpo_pairs_round_{round_num}.jsonl")
+    save_pairs(pairs, pairs_file)
+
+    from turnstile.dpo import train_dpo
+    chat_tpl = cfg.adversary_chat_template_model if cfg.adversary_is_base else None
+    train_dpo(
+        model_id=cfg.adversary_model,
+        pairs_file=pairs_file,
+        adapter_path=adapter_dir,
+        num_iters=cfg.training.lora_iters,
+        lr=cfg.training.lora_lr,
+        beta=0.1,
+        lora_rank=cfg.training.lora.rank,
+        lora_alpha=cfg.training.lora.alpha,
+        target_modules=cfg.training.lora.target_modules,
+        chat_template_model=chat_tpl,
     )
 
 
@@ -476,22 +557,32 @@ def main(cfg=None, stealth_cfg=None, together_api_key=""):
                 conversations, goal_entries, r, cfg
             )
 
-        # Save round data (conversations + verdicts)
-        _save_round_data(conversations, verdicts, r, cfg)
-
-        # Phase 2.5: Temporal probe scoring
+        # Phase 2.5: Temporal probe scoring (before save so scores persist)
         probe_scores = probe.score_batch(hidden_states_list)
         print(f"   Probe scores: mean={probe_scores.mean():.3f}, "
               f"std={probe_scores.std():.3f}")
+
+        # Inject probe scores into verdicts for downstream analysis
+        for i, v in enumerate(verdicts):
+            v["probe_score"] = float(probe_scores[i])
+
+        # Save round data (now includes probe scores)
+        _save_round_data(conversations, verdicts, r, cfg)
 
         # Accumulate for probe retraining
         accum_hidden.extend(hidden_states_list)
         accum_labels.extend([v["unsafe"] for v in verdicts])
 
-        # Phase 3: Stealth-weighted training
+        # Phase 3: Training (mode-dependent)
         # Clear CUDA cache to avoid fragmentation before LoRA backward pass
         torch.cuda.empty_cache()
-        if win_indices:
+        if stealth_cfg.mode == "probe_dpo":
+            # DPO trains every round (learns from losses too)
+            train_adversary_probe_dpo(
+                conversations, adv_messages_list, verdicts, goal_entries,
+                probe_scores, r, cfg, stealth_cfg,
+            )
+        elif win_indices:
             train_adversary_stealth(
                 win_indices, adv_messages_list, probe_scores,
                 r, cfg, stealth_cfg,
@@ -582,7 +673,8 @@ def parse_args(args=None):
     parser.add_argument("--probe-path", type=str, default="",
                         help="Path to sklearn probe pickle (alternative to --tsae-dir)")
     parser.add_argument("--stealth-mode", type=str, default="weighted",
-                        choices=["filter", "weighted", "none"])
+                        choices=["filter", "weighted", "iw_weighted",
+                                 "probe_dpo", "none"])
     parser.add_argument("--stealth-threshold", type=float, default=0.4)
     parser.add_argument("--stealth-alpha", type=float, default=3.0)
     parser.add_argument("--retrain-probe-every", type=int, default=5)

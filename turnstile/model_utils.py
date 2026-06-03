@@ -12,6 +12,7 @@ import json
 import os
 import random
 
+import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model, PeftModel, prepare_model_for_kbit_training
@@ -256,6 +257,7 @@ def train_lora_multiturn(
     # "reproduce entire trajectory."
     train_file = os.path.join(data_path, "train.jsonl")
     dataset = []  # list of (tokens, [(start, end)])
+    sample_weights = []  # per-example importance weights (empty = uniform)
     with open(train_file) as f:
         for line in f:
             line = line.strip()
@@ -263,6 +265,7 @@ def train_lora_multiturn(
                 continue
             row = json.loads(line)
             messages = row["messages"]
+            w = row.get("weight")  # optional importance weight
 
             # Find assistant turn indices
             asst_indices = [i for i, m in enumerate(messages)
@@ -278,6 +281,8 @@ def train_lora_multiturn(
                     # Only keep the last span (this turn's assistant message)
                     last_span = spans[-1]
                     dataset.append((tokens, [last_span]))
+                    if w is not None:
+                        sample_weights.append(w)
 
     if not dataset:
         print("   [Warning] No training data — skipping.")
@@ -287,15 +292,30 @@ def train_lora_multiturn(
     model.train()
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
+    # Importance-weighted sampling: if JSONL entries have "weight" fields,
+    # sample proportional to weight instead of uniformly. This avoids the
+    # information loss of bootstrap-then-dedup.
+    _sw = None
+    if len(sample_weights) == len(dataset) and sample_weights:
+        _sw = np.array(sample_weights, dtype=np.float64)
+        _sw /= _sw.sum()
+        print(f"   Importance-weighted sampling enabled "
+              f"(max/min ratio: {_sw.max()/_sw.min():.1f}x)")
+
     print(f"   Training for {num_iters} steps "
           f"(dataset: {len(dataset)} conversations)...")
 
     losses = []
     for step in range(num_iters):
-        batch_samples = [
-            dataset[random.randint(0, len(dataset) - 1)]
-            for _ in range(batch_size)
-        ]
+        if _sw is not None:
+            indices = np.random.choice(len(dataset), size=batch_size,
+                                       replace=True, p=_sw)
+            batch_samples = [dataset[i] for i in indices]
+        else:
+            batch_samples = [
+                dataset[random.randint(0, len(dataset) - 1)]
+                for _ in range(batch_size)
+            ]
         max_len = min(max(s[0].shape[0] for s in batch_samples), 2048)
 
         input_ids = torch.full(

@@ -58,12 +58,17 @@ def _format_conversation(conv):
     return "\n\n".join(lines)
 
 
-def _call_together(api_key, prompt, model="meta-llama/Llama-3.1-70B-Instruct"):
-    """Call Together API for a single judge evaluation."""
+def _call_together(api_key, prompt, model="meta-llama/Llama-3.1-70B-Instruct",
+                   base_url="https://api.together.xyz/v1"):
+    """Call an OpenAI-compatible chat endpoint for a single judge evaluation.
+
+    Defaults to the Together API; pass base_url="http://localhost:8002/v1"
+    (and any non-empty api_key) to use a locally-served vLLM judge instead.
+    """
     resp = requests.post(
-        "https://api.together.xyz/v1/chat/completions",
+        base_url.rstrip("/") + "/chat/completions",
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {api_key or 'dummy'}",
             "Content-Type": "application/json",
         },
         json={
@@ -72,7 +77,7 @@ def _call_together(api_key, prompt, model="meta-llama/Llama-3.1-70B-Instruct"):
             "max_tokens": 10,
             "temperature": 0.0,
         },
-        timeout=30,
+        timeout=60,
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"].strip().lower()
@@ -100,10 +105,26 @@ class DualJudge:
     """Llama Guard (local) + Llama-3.1-70B (Together API) dual judge."""
 
     def __init__(self, together_api_key,
-                 together_model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-                 judge_model_id="meta-llama/Llama-Guard-3-1B"):
-        self.api_key = together_api_key
-        self.together_model = together_model
+                 together_model=None,
+                 judge_model_id="meta-llama/Llama-Guard-3-1B",
+                 judge_base_url=None):
+        # Allow overriding the remote judge via env vars without touching the
+        # CLI plumbing of loop.py / vllm_loop.py / bootstrap.py. Set
+        #   TURNSTILE_JUDGE_BASE_URL=http://localhost:8002/v1
+        #   TURNSTILE_JUDGE_MODEL=local-judge      (the vLLM --served-model-name)
+        # to point at a locally-served vLLM judge instead of Together.
+        import os as _os
+        self.api_key = together_api_key or "dummy"
+        self.together_model = (
+            together_model
+            or _os.environ.get("TURNSTILE_JUDGE_MODEL")
+            or "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        )
+        self.judge_base_url = (
+            judge_base_url
+            or _os.environ.get("TURNSTILE_JUDGE_BASE_URL")
+            or "https://api.together.xyz/v1"
+        )
         self.judge_model_id = judge_model_id
         self._model = None
         self._tok = None
@@ -149,7 +170,8 @@ class DualJudge:
             response=response,
         )
         try:
-            return _call_together(self.api_key, prompt, self.together_model)
+            return _call_together(self.api_key, prompt, self.together_model,
+                                  base_url=self.judge_base_url)
         except Exception as e:
             print(f"   [Together API error: {e}] — falling back to Guard only")
             return None

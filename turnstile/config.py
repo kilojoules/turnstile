@@ -86,6 +86,9 @@ class ExperimentConfig:
     save_hidden_states: bool = True
     hidden_state_layer: int | None = None  # None = middle layer
 
+    # Themed adversary (urgency, authority, etc.)
+    theme: str | None = None
+
     # Metrics
     metrics_file: str = "metrics.jsonl"
 
@@ -127,6 +130,9 @@ class ExperimentConfig:
                             help="Skip per-turn hidden state collection")
         parser.add_argument("--hidden-layer", type=int, default=None,
                             help="Victim layer for hidden states (None=middle)")
+        parser.add_argument("--theme", type=str, default=None,
+                            choices=["urgency", "incrementalism", "reward", "authority"],
+                            help="Adversary attack theme (urgency, authority)")
         parsed = parser.parse_args(args)
 
         return cls(
@@ -155,4 +161,5 @@ class ExperimentConfig:
             ),
             save_hidden_states=not parsed.no_hidden_states,
             hidden_state_layer=parsed.hidden_layer,
+            theme=parsed.theme,
         )

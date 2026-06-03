@@ -35,6 +35,7 @@ from turnstile.model_utils import (
     train_lora_multiturn,
     unload_model,
 )
+from turnstile.themes import get_theme, build_system_prompt
 from turnstile.zoo import CheckpointZoo
 
 
@@ -101,9 +102,25 @@ def deduplicate_conversations(entries, threshold):
 # Phase 1: Generate multi-turn conversations
 # ---------------------------------------------------------------------------
 
+_REFUSAL_PREFIXES = (
+    "i can't", "i cannot", "i won't", "i will not", "i'm not able",
+    "i am not able", "i'm sorry", "i apologize", "i'm unable", "i am unable",
+    "i must decline", "i'd rather not", "sorry, i", "sorry but i",
+    "unfortunately, i", "i'm not going to", "i am not going to",
+    "i refuse", "i don't feel comfortable",
+)
+
+
+def _looks_like_refusal(text):
+    """Heuristic: does this text look like an adversary refusing to attack?"""
+    import re
+    t = re.sub(r"^[^a-zA-Z]+", "", text.strip().lower())
+    return any(t.startswith(p) for p in _REFUSAL_PREFIXES)
+
+
 def _run_conversation(adv_model, adv_tok, vic_model, vic_tok,
                       goal, num_turns, layer_idx=None,
-                      collect_hidden_states=True):
+                      collect_hidden_states=True, theme=None):
     """Run a single multi-turn adversarial conversation.
 
     The adversary and victim interact for *num_turns* exchanges. At each
@@ -124,7 +141,7 @@ def _run_conversation(adv_model, adv_tok, vic_model, vic_tok,
     # showed full red-team prompt produces identical ASR (6% vs 6%) but
     # introduces a distribution shift from the LoRA's training format.
     adv_messages = [
-        {"role": "system", "content": f"Goal: {goal}"},
+        {"role": "system", "content": build_system_prompt(goal, theme)},
         {"role": "user", "content": "Begin the conversation."},
     ]
     hidden_states = []
@@ -185,6 +202,7 @@ def generate_conversations(round_num, cfg, goals, victim_zoo):
     """
     print(f"\n[Round {round_num}] >> PHASE 1: GENERATING MULTI-TURN CONVERSATIONS")
 
+    theme = get_theme(cfg.theme)
     exp = _exp_dir(cfg)
     adapter_dir = os.path.join(exp, cfg.adapter_path)
     use_adapter = adapter_dir if _adapter_exists(adapter_dir) else None
@@ -226,6 +244,7 @@ def generate_conversations(round_num, cfg, goals, victim_zoo):
             adv_model, adv_tok, vic_model, vic_tok,
             goal, cfg.num_turns, cfg.hidden_state_layer,
             collect_hidden_states=cfg.save_hidden_states,
+            theme=theme,
         )
 
         conversations.append(conv)
@@ -234,8 +253,18 @@ def generate_conversations(round_num, cfg, goals, victim_zoo):
         goal_entries.append(goal_entry)
 
         first_msg = conv[0]["content"][:50] if conv else "?"
+        adv_refused = _looks_like_refusal(conv[0]["content"]) if conv else False
+        tag = "[ADV-REFUSE]" if adv_refused else ""
         print(f"   Conv {i+1}/{cfg.candidates_per_round}: "
-              f"[{goal_entry['category']}] {first_msg}...")
+              f"[{goal_entry['category']}]{tag} {first_msg}...")
+
+    n_adv_refuse = sum(
+        1 for c in conversations
+        if c and _looks_like_refusal(c[0]["content"])
+    )
+    if n_adv_refuse:
+        print(f"   [!] Adversary refused to attack in "
+              f"{n_adv_refuse}/{len(conversations)} conversations")
 
     unload_model(adv_model, adv_tok, vic_model, vic_tok)
     return conversations, adv_messages_list, hidden_states_list, goal_entries
@@ -314,15 +343,24 @@ def _save_round_data(conversations, verdicts, round_num, cfg):
     round_file = os.path.join(exp, "rounds", f"round_{round_num}.jsonl")
     with open(round_file, "w") as f:
         for conv, verdict in zip(conversations, verdicts):
+            adv_refused = (
+                bool(conv) and _looks_like_refusal(conv[0]["content"])
+            )
             record = {
                 "round": round_num,
                 "conversation": conv,
+                "adversary_refused": adv_refused,
                 **verdict,
             }
             f.write(json.dumps(record) + "\n")
     n_unsafe = sum(1 for v in verdicts if v["unsafe"])
+    n_adv_refuse = sum(
+        1 for c in conversations
+        if c and _looks_like_refusal(c[0]["content"])
+    )
     print(f"   Round data saved: {round_file} "
-          f"({len(verdicts)} convs, {n_unsafe} unsafe)")
+          f"({len(verdicts)} convs, {n_unsafe} unsafe, "
+          f"{n_adv_refuse} adversary-refused)")
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +481,7 @@ def train_adversary_dpo(conversations, adv_messages_list, verdicts,
 
     from turnstile.dpo import build_dpo_pairs, train_dpo
 
-    pairs = build_dpo_pairs(round_files, per_turn=True)
+    pairs = build_dpo_pairs(round_files, per_turn=True, theme_name=cfg.theme)
     if not pairs:
         print("   No DPO pairs (need both wins and losses for same goal). Skipping.")
         return
@@ -710,6 +748,8 @@ def main(cfg: ExperimentConfig | None = None, together_api_key: str = "",
           f"Candidates/round: {cfg.candidates_per_round}")
     print(f"Rounds: {cfg.rounds}, "
           f"Victim: {'hardened' if cfg.harden_victim else 'frozen'}")
+    if cfg.theme:
+        print(f"Theme: {cfg.theme}")
     print(f"Output: {exp}")
 
     for r in range(cfg.rounds):
