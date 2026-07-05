@@ -113,6 +113,57 @@ All results in this README use the JailbreakBench standard judge with dual-judge
 
 **Compact prompt matches full red-team prompt.** A screening test (50 conversations each, same adapter, same seed) showed identical ASR (6% vs 6%) between a detailed strategy prompt and a minimal `Goal: {goal}` prompt. The compact prompt avoids distribution shift between training and inference.
 
+## Causal steering: gate vs form vs capability
+
+A follow-up asks whether the victim's *compliance* and *harm* directions are causal
+knobs or just correlational readouts. Steering along a probe direction turns out to
+be the wrong test, and the corrected experiments separate three kinds of concept.
+
+**Additive probe-direction steering was a norm artifact.** Adding `α·(direction)` at
+up to a full residual-stream norm produces a U-shaped ASR curve — but a *random*
+direction of matched norm reproduces the entire U. The effect is even in α (a
+norm-energy perturbation that degrades the model), not a directional signal.
+
+![Norm confound](figures/causal_steering/fig1_norm_confound.png)
+
+**Refusal is a causal gate — bidirectionally steerable.** Using Arditi et al.'s
+method (a harmful-vs-harmless difference-in-means direction, norm-preserving
+directional ablation), the refusal direction is causal: ablating it bypasses refusal
+(98%→68% refusal, 2%→32% harmful content, McNemar p=0.0003) and adding it induces
+refusal on benign prompts (0%→64%). A random direction and our own compliance *probe*
+direction (cosine ≈ 0 to refusal) do nothing — the probe reads compliance out but is
+not the lever.
+
+![Refusal gate](figures/causal_steering/fig2_refusal_gate.png)
+
+**Output form is add-steerable.** A positive control fits language and verbosity
+directions the same way. Addition moves them strongly (English→French 0%→98%; terse
+responses 30→115 tokens); ablation is a weak lever for both. So the method *can* touch
+output content — via addition.
+
+![Output content](figures/causal_steering/fig3_output_content.png)
+
+**Harm-uplift is a capability — steerable by neither.** Under the identical mechanism
+that flips language 0%→98%, adding the harm direction at a calibrated (non-degrading)
+magnitude raises Stage-B uplift by +0.11 Likert (indistinguishable from random), and
+ablating it does nothing either — despite harm being cleanly *decodable* (post-response
+probe AUC 0.88). You can't inject with a steering vector the operational capability the
+8B victim lacks.
+
+![Harm capability](figures/causal_steering/fig4_harm_capability.png)
+
+| concept | ADD (induce) | ABLATE (remove) | kind of thing |
+|---|:---:|:---:|---|
+| refusal / compliance | ✅ 0→64% | ✅ 98→68% | **behavioral gate** |
+| language (French) | ✅ 0→98% | ⚠️ weak | **output form** |
+| verbosity | ✅ 30→115 tok | ⚠️ weak | **output form** |
+| harm-uplift | ❌ +0.11 (≈random) | ❌ ≈random | **capability** |
+
+**Takeaway.** "Harm ≠ compliance" holds, but as *gate vs capability*, not two directions
+of differing strength. ASR overstates harm because the gate flips trivially while the
+capability cannot be conjured. Regenerate with `python scripts/plot_causal_steering.py`;
+per-experiment details are in `experiments/{arditi_repl_v1,harm_ablation_v1,output_content_control_v1,add_harm_v1}/SUMMARY.md`.
+
 ## Method
 
 ### Architecture
