@@ -1,0 +1,35 @@
+{
+  "selected_layer": 12,
+  "raw_norm": 4.251968860626221,
+  "selection": {
+    "12": {
+      "refusal_rate": 0.35,
+      "degrade_rate": 0.3
+    },
+    "14": {
+      "refusal_rate": 0.55,
+      "degrade_rate": 0.45
+    },
+    "16": {
+      "refusal_rate": 0.7,
+      "degrade_rate": 0.5
+    },
+    "18": {
+      "refusal_rate": 0.6,
+      "degrade_rate": 0.35
+    },
+    "20": {
+      "refusal_rate": 0.8,
+      "degrade_rate": 0.6
+    }
+  },
+  "layers": [
+    12,
+    14,
+    16,
+    18,
+    20
+  ],
+  "cos_refusal_lrcomp": -0.010970115661621094,
+  "cos_refusal_random": 0.0011368542909622192
+}
