@@ -119,12 +119,17 @@ A follow-up asks whether the victim's *compliance* and *harm* directions are cau
 knobs or just correlational readouts. Steering along a probe direction turns out to
 be the wrong test, and the corrected experiments separate three kinds of concept.
 
-**Additive probe-direction steering was a norm artifact.** Adding `α·(direction)` at
-up to a full residual-stream norm produces a U-shaped ASR curve — but a *random*
-direction of matched norm reproduces the entire U. The effect is even in α (a
-norm-energy perturbation that degrades the model), not a directional signal.
+**Steering the probe direction is a norm artifact; steering the causal direction is
+monotonic.** Adding `α·(compliance probe direction)` traces a U-shaped ASR curve that a
+random direction of matched norm reproduces — an even-in-α norm-energy perturbation, not
+a directional signal (left). But sweeping α along the *causal* refusal direction
+(harmful-vs-harmless difference-in-means) is cleanly **monotonic** (right): on benign
+prompts it induces refusal 0→100% as α rises; on harmful prompts it bypasses refusal
+98→0% as α falls; a random direction stays flat. A monotonic, antisymmetric response is
+the signature of a real directional effect — the U-shape is what you get from steering
+the wrong direction too hard.
 
-![Norm confound](figures/causal_steering/fig1_norm_confound.png)
+![Monotonic vs U-shape](figures/causal_steering/fig5_monotonic_sweep.png)
 
 **Refusal is a causal gate — bidirectionally steerable.** Using Arditi et al.'s
 method (a harmful-vs-harmless difference-in-means direction, norm-preserving

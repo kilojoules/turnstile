@@ -156,7 +156,46 @@ def fig_harm_capability():
                  fontsize=12, y=1.02)
     fig.tight_layout(); fig.savefig(f"{OUT}/fig4_harm_capability.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
+# ---------------------------------------------------------------- FIG 5
+def fig_monotonic():
+    # left: U-shaped probe direction (loss-set ASR vs alpha) — reuse fig1 data
+    comp = load("experiments/steering_v3/sweep_p2_judged.jsonl")
+    rand = load("experiments/steering_v3/sweep_random_L16_jbb_qwen.jsonl")
+    def curve(rows):
+        by = defaultdict(list)
+        for r in rows:
+            if r.get("prompt_type") == "loss":
+                by[r.get("alpha_c")].append(r)
+        xs = sorted(a for a in by if a is not None)
+        return xs, [rate(by[a], "judge_compliance_unsafe") for a in xs]
+    cx, cy = curve(comp); rx, ry = curve(rand)
+    # right: monotonic refusal-direction sweep
+    rows = load("experiments/refusal_alpha_sweep_v1/sweep.jsonl")
+    by = defaultdict(list)
+    for r in rows: by[(r["set"], r["direction"], r["alpha"])].append(r)
+    alphas = sorted(set(r["alpha"] for r in rows))
+    def rr(setn, dirn): return [rate(by[(setn, dirn, a)], "is_refusal") for a in alphas]
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4.3), sharey=False)
+    a1.plot(cx, cy, "-o", color=BLUE, lw=2.4, ms=7, label='"compliance direction" (probe)')
+    a1.plot(rx, ry, "--s", color=GREY, lw=2.2, ms=6, label="random (matched norm)")
+    a1.set_xlabel("steering coefficient  α"); a1.set_ylabel("attack success rate (%)")
+    a1.set_title("Probe direction → U-shaped\n(norm artifact: random matches it)", fontsize=10.5)
+    a1.legend(frameon=False, fontsize=9); a1.grid(alpha=0.25)
+    a2.plot(alphas, rr("benign", "refusal"), "-o", color=GREEN, lw=2.4, ms=7, label="benign: induce refusal")
+    a2.plot(alphas, rr("harmful", "refusal"), "-o", color=RED, lw=2.4, ms=7, label="harmful: bypass refusal")
+    a2.plot(alphas, rr("benign", "random"), "--s", color=GREY, lw=2.2, ms=6, label="random (benign): flat")
+    a2.axvline(0, color="k", lw=0.6, ls=":")
+    a2.set_xlabel("steering coefficient  α  (× raw refusal diff-in-means)")
+    a2.set_ylabel("refusal rate (%)")
+    a2.set_title("Refusal direction → monotonic\n(the signature of a causal direction)", fontsize=10.5)
+    a2.legend(frameon=False, fontsize=9, loc="center left"); a2.grid(alpha=0.25)
+    fig.suptitle("Monotonic (causal) vs U-shaped (artifact): what steering along the right direction looks like",
+                 fontsize=12, y=1.02)
+    fig.tight_layout(); fig.savefig(f"{OUT}/fig5_monotonic_sweep.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
 if __name__ == "__main__":
+    fig_monotonic(); print("fig5 monotonic")
     fig_norm_confound(); print("fig1 norm_confound")
     fig_refusal_gate(); print("fig2 refusal_gate")
     fig_output_content(); print("fig3 output_content")
