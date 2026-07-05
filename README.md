@@ -71,6 +71,18 @@ knowledge the 8B victim lacks; steering moves representations and forms, not cap
 
 ![Harm-uplift is a capability](figures/causal_steering/fig4_harm_capability.png)
 
+**Does pushing harder help?** No. Sweeping the push magnitude from zero into the
+degradation regime (up to a full residual-stream norm) leaves uplift flat (~2.2/5, a
+trivial +0.09 peak) and then *lowers* it as coherence collapses — it never rises, at any
+magnitude, while French flips to 98% at a magnitude of 2.3 with no degradation. The harm
+direction is marginally more harm-flavoured than a random direction at low magnitude
+(+0.1–0.2) but never manufactures uplift. (An earlier analysis on already-harmful replies
+found a larger +0.40 signal because those replies *already contained* harmful content for
+the direction to amplify — on these low-uplift replies there is nothing to amplify, which
+is exactly what "capability, not representation" predicts.)
+
+![Harm dose-response](figures/causal_steering/fig5_harm_doseresponse.png)
+
 ---
 
 ## How we tested it
