@@ -34,6 +34,8 @@ def cap(fig, text):
 
 # ------------------------------------------------------------------ FIG 1 (monotonic vs U)
 def fig_monotonic():
+    # every panel below holds the PROMPT SET fixed and compares the real direction
+    # against a random direction (shared alpha=0 baseline within each panel).
     comp = load("experiments/steering_v3/sweep_p2_judged.jsonl")
     rnd = load("experiments/steering_v3/sweep_random_L16_jbb_qwen.jsonl")
     def curve(rows):
@@ -49,38 +51,41 @@ def fig_monotonic():
     A = sorted(set(r["alpha"] for r in rows))
     def rr(s, d): return [rate(by[(s, d, a)], "is_refusal") for a in A]
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11.5, 4.6))
-    # LEFT: probe direction, U-shaped
-    a1.plot(cx, cy, "-o", color=BLUE, lw=2.5, ms=7, label="steer the compliance PROBE direction")
-    a1.plot(rx, ry, "--s", color=GREY, lw=2.2, ms=6, label="steer a RANDOM direction (same size)")
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(15.5, 4.5))
+    # Panel 1: compliance PROBE direction on the loss set -> U-shape (== random)
+    a1.plot(cx, cy, "-o", color=BLUE, lw=2.4, ms=6.5, label="compliance PROBE direction")
+    a1.plot(rx, ry, "--s", color=GREY, lw=2.1, ms=5.5, label="random direction")
     a1.axvline(0, color="k", lw=0.7, ls=":")
     a1.set_xlabel("steering strength  α"); a1.set_ylabel("jailbreak success rate (%)")
-    a1.set_title("WRONG direction → U-shaped (an artifact)\nboth pushes raise ASR; random matches it", color=CRIM)
-    a1.legend(frameon=False, fontsize=8.6, loc="upper center"); a1.grid(alpha=0.25)
-    # RIGHT: refusal direction, monotonic — annotate the two baselines
-    a2.axhspan(0, 100, xmin=0, xmax=0.5, color="#f4f4f4", zorder=0)
-    a2.plot(A, rr("harmful", "refusal"), "-o", color=CRIM, lw=2.5, ms=7, label="harmful prompts")
-    a2.plot(A, rr("benign", "refusal"), "-o", color=TEAL, lw=2.5, ms=7, label="benign prompts")
-    a2.plot(A, rr("benign", "random"), "--s", color=GREY, lw=2.0, ms=6, label="benign, random direction")
-    a2.axvline(0, color="k", lw=0.8, ls=":")
-    a2.text(0.02, 103, "α = 0: no steering\n(each set at its own baseline)", fontsize=8, ha="left")
-    a2.annotate("harmful baseline 98%", (0.0, 98), (-1.45, 86), fontsize=8, color=CRIM,
-                arrowprops=dict(arrowstyle="->", color=CRIM, lw=1))
-    a2.annotate("benign baseline 0%", (0.0, 0), (0.25, 12), fontsize=8, color=TEAL,
-                arrowprops=dict(arrowstyle="->", color=TEAL, lw=1))
-    a2.text(-1.4, 55, "← remove\nrefusal", fontsize=8.5, ha="left", color="#555")
-    a2.text(1.45, 55, "add\nrefusal →", fontsize=8.5, ha="right", color="#555")
-    a2.set_xlabel("steering strength  α   (− = remove refusal, + = add refusal)")
-    a2.set_ylabel("refusal rate (%)"); a2.set_ylim(-4, 116)
-    a2.set_title("RIGHT direction → monotonic (causal)\nmore refusal-feature ⇒ more refusal, on both sets", color=TEAL)
-    a2.legend(frameon=False, fontsize=8.6, loc="center left"); a2.grid(alpha=0.25)
-    fig.suptitle("What steering looks like when you use the wrong vs the right direction", fontsize=13, y=1.03)
-    cap(fig, "Each line adds α·(a direction) to the victim's residual stream. Left: the compliance probe "
-             "direction gives a symmetric U — a random direction reproduces it, so it is a size-of-push artifact, "
-             "not a real effect. Right: the causal refusal direction moves refusal monotonically — adding it "
-             "(α>0) makes benign prompts refuse (teal, 0→100%), removing it (α<0) makes harmful prompts comply "
-             "(crimson, 98→0%). The two curves start at different heights only because benign vs harmful prompts "
-             "have different baseline refusal rates at α=0.")
+    a1.set_title("Compliance PROBE direction\n(same set: 60 loss prompts)\n→ U-shaped = random ⇒ artifact", color=CRIM, fontsize=10)
+    a1.legend(frameon=False, fontsize=8.4, loc="upper center"); a1.grid(alpha=0.25)
+    # Panel 2: refusal direction on HARMFUL prompts -> monotonic bypass, vs random on same set
+    a2.plot(A, rr("harmful", "refusal"), "-o", color=CRIM, lw=2.5, ms=6.5, label="refusal direction")
+    a2.plot(A, rr("harmful", "random"), "--s", color=GREY, lw=2.1, ms=5.5, label="random direction")
+    a2.axvline(0, color="k", lw=0.7, ls=":"); a2.axhline(98, color="#bbbbbb", lw=0.8, ls="--")
+    a2.text(-1.45, 92, "baseline 98% (α=0)", fontsize=8, color="#666")
+    a2.set_xlabel("steering strength  α   (− = remove refusal)")
+    a2.set_ylabel("refusal rate (%)"); a2.set_ylim(-4, 110)
+    a2.set_title("Refusal direction on HARMFUL prompts\n(same set: 40 harmful prompts)\n→ monotonic bypass; random flat", color=TEAL, fontsize=10)
+    a2.legend(frameon=False, fontsize=8.4, loc="lower right"); a2.grid(alpha=0.25)
+    # Panel 3: refusal direction on BENIGN prompts -> monotonic induce, vs random on same set
+    a3.plot(A, rr("benign", "refusal"), "-o", color=TEAL, lw=2.5, ms=6.5, label="refusal direction")
+    a3.plot(A, rr("benign", "random"), "--s", color=GREY, lw=2.1, ms=5.5, label="random direction")
+    a3.axvline(0, color="k", lw=0.7, ls=":"); a3.axhline(0, color="#bbbbbb", lw=0.8, ls="--")
+    a3.text(-1.45, 6, "baseline 0% (α=0)", fontsize=8, color="#666")
+    a3.set_xlabel("steering strength  α   (+ = add refusal)")
+    a3.set_ylabel("refusal rate (%)"); a3.set_ylim(-4, 110)
+    a3.set_title("Refusal direction on BENIGN prompts\n(same set: 40 benign prompts)\n→ monotonic induction; random flat", color=TEAL, fontsize=10)
+    a3.legend(frameon=False, fontsize=8.4, loc="upper left"); a3.grid(alpha=0.25)
+    fig.suptitle("Each panel holds the prompt set fixed and changes only the direction (real vs random)",
+                 fontsize=13, y=1.04)
+    cap(fig, "Apples-to-apples: within every panel the prompt set and the α=0 baseline are identical for both "
+             "lines — only the steering direction differs. Left: on the loss set the compliance-probe direction "
+             "traces a U that a random direction reproduces (a size-of-push artifact). Middle & right: on a fixed "
+             "harmful (or benign) set, the causal refusal direction moves refusal monotonically — bypassing it "
+             "(98→0%) or inducing it (0→100%) — while a random direction of the same size stays flat. The middle "
+             "and right panels use different sets only because a set already at 98% refusal has no room to be "
+             "'induced' and one at 0% has none to be 'bypassed'.")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig1_monotonic_vs_ushape.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
 # ------------------------------------------------------------------ FIG 2 (refusal gate)

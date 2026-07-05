@@ -121,6 +121,7 @@ def main():
     run("benign", b_eval, "refusal", raw)
     run("harmful", h_eval, "refusal", raw)
     run("benign", b_eval, "random", rand)
+    run("harmful", h_eval, "random", rand)   # control on the harmful set (apples-to-apples)
     fout.close()
     print("DONE", flush=True)
 

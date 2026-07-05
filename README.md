@@ -30,12 +30,15 @@ capability cannot be conjured.
 
 ## 1. Steering the *right* direction is monotonic; the probe direction is a norm artifact
 
-Early additive steering along the compliance *probe* direction produced a U-shaped ASR
-curve — but a **random** direction of matched size reproduces the whole U (left panel).
-That is a size-of-push artifact, not a directional effect. Steering the *causal* refusal
-direction (harmful-vs-harmless difference-in-means) instead is cleanly **monotonic**
-(right panel): adding it makes benign prompts refuse (0→100%), removing it makes harmful
-prompts comply (98→0%).
+Every panel below holds the **prompt set fixed** and changes only the **direction**
+(the real one vs a random one of the same size), so within each panel both lines share
+the same α=0 baseline. Left — on the loss set, the compliance *probe* direction traces a
+U that a random direction reproduces: a size-of-push artifact, not a directional effect.
+Middle & right — on a fixed harmful (or benign) set, the causal refusal direction
+(harmful-vs-harmless difference-in-means) moves refusal **monotonically**: it bypasses
+refusal (98→0%) or induces it (0→100%) while a random direction stays essentially flat.
+(The two right panels use different sets only because a set already at 98% refusal has no
+room to be *induced*, and one at 0% has none to be *bypassed*.)
 
 ![Monotonic vs U-shape](figures/causal_steering/fig1_monotonic_vs_ushape.png)
 
