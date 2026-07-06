@@ -57,36 +57,76 @@ def fig_monotonic():
     a1.plot(rx, ry, "--s", color=GREY, lw=2.1, ms=5.5, label="random direction")
     a1.axvline(0, color="k", lw=0.7, ls=":")
     a1.set_xlabel("steering strength  α"); a1.set_ylabel("jailbreak success rate (%)")
-    a1.set_title("Compliance PROBE direction\n(same set: 60 loss prompts)\n→ U-shaped = random ⇒ artifact", color=CRIM, fontsize=10)
+    a1.set_title("Compliance PROBE direction\n(60 loss-set replies)\n→ U-shaped = random ⇒ artifact", color=CRIM, fontsize=10)
     a1.legend(frameon=False, fontsize=8.4, loc="upper center"); a1.grid(alpha=0.25)
-    # Panel 2: refusal direction on HARMFUL prompts -> monotonic bypass, vs random on same set
+    # Panel 2: refusal direction on HARMFUL prompts -> monotonic bypass, vs random
     a2.plot(A, rr("harmful", "refusal"), "-o", color=CRIM, lw=2.5, ms=6.5, label="refusal direction")
     a2.plot(A, rr("harmful", "random"), "--s", color=GREY, lw=2.1, ms=5.5, label="random direction")
     a2.axvline(0, color="k", lw=0.7, ls=":"); a2.axhline(98, color="#bbbbbb", lw=0.8, ls="--")
     a2.text(-1.45, 92, "baseline 98% (α=0)", fontsize=8, color="#666")
     a2.set_xlabel("steering strength  α   (− = remove refusal)")
     a2.set_ylabel("refusal rate (%)"); a2.set_ylim(-4, 110)
-    a2.set_title("Refusal direction on HARMFUL prompts\n(same set: 40 harmful prompts)\n→ monotonic bypass; random flat", color=TEAL, fontsize=10)
+    a2.set_title("40 harmful prompts (JailbreakBench)\n→ monotonic bypass; random flat", color=TEAL, fontsize=10)
     a2.legend(frameon=False, fontsize=8.4, loc="lower right"); a2.grid(alpha=0.25)
-    # Panel 3: refusal direction on BENIGN prompts -> monotonic induce, vs random on same set
+    # Panel 3: refusal direction on BENIGN prompts -> monotonic induce, vs random
     a3.plot(A, rr("benign", "refusal"), "-o", color=TEAL, lw=2.5, ms=6.5, label="refusal direction")
     a3.plot(A, rr("benign", "random"), "--s", color=GREY, lw=2.1, ms=5.5, label="random direction")
     a3.axvline(0, color="k", lw=0.7, ls=":"); a3.axhline(0, color="#bbbbbb", lw=0.8, ls="--")
     a3.text(-1.45, 6, "baseline 0% (α=0)", fontsize=8, color="#666")
     a3.set_xlabel("steering strength  α   (+ = add refusal)")
     a3.set_ylabel("refusal rate (%)"); a3.set_ylim(-4, 110)
-    a3.set_title("Refusal direction on BENIGN prompts\n(same set: 40 benign prompts)\n→ monotonic induction; random flat", color=TEAL, fontsize=10)
+    a3.set_title("40 benign prompts (AlpacaEval)\n→ monotonic induction; random flat", color=TEAL, fontsize=10)
     a3.legend(frameon=False, fontsize=8.4, loc="upper left"); a3.grid(alpha=0.25)
-    fig.suptitle("Each panel holds the prompt set fixed and changes only the direction (real vs random)",
-                 fontsize=13, y=1.04)
-    cap(fig, "Apples-to-apples: within every panel the prompt set and the α=0 baseline are identical for both "
-             "lines — only the steering direction differs. Left: on the loss set the compliance-probe direction "
-             "traces a U that a random direction reproduces (a size-of-push artifact). Middle & right: on a fixed "
-             "harmful (or benign) set, the causal refusal direction moves refusal monotonically — bypassing it "
-             "(98→0%) or inducing it (0→100%) — while a random direction of the same size stays flat. The middle "
-             "and right panels use different sets only because a set already at 98% refusal has no room to be "
-             "'induced' and one at 0% has none to be 'bypassed'.")
+    fig.suptitle("Within each panel, one fixed pool of prompts is steered — only the direction (real vs random) changes",
+                 fontsize=12.5, y=1.04)
+    cap(fig, "Every line adds α·(a direction) to the same fixed pool of prompts at layer 16, and each panel compares "
+             "the real direction against a random direction of equal magnitude, so within a panel the prompts and "
+             "the push size are held constant and only the direction changes. Left: the compliance-probe direction "
+             "on 60 loss-set replies traces a U that a random direction reproduces (a size-of-push artifact). "
+             "Middle: on 40 JailbreakBench harmful prompts (98% refuse at α=0), negative α removes the refusal "
+             "direction and bypasses refusal (98→0%); random only perturbs it near the largest pushes. Right: on 40 "
+             "AlpacaEval benign prompts (0% refuse at α=0), positive α adds the refusal direction and induces refusal "
+             "(0→100%); random does nothing. The two right panels use different pools because a pool already at 98% "
+             "refusal has no room to be 'induced', and one at 0% has none to be 'bypassed'.")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig1_monotonic_vs_ushape.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
+def fig_refusal_2panel():
+    """Just the two monotonic panels of fig1 (harmful bypass + benign induce)."""
+    rows = load("experiments/refusal_alpha_sweep_v1/sweep.jsonl")
+    by = defaultdict(list)
+    for r in rows: by[(r["set"], r["direction"], r["alpha"])].append(r)
+    A = sorted(set(r["alpha"] for r in rows))
+    def rr(s, d): return [rate(by[(s, d, a)], "is_refusal") for a in A]
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11.5, 4.7))
+    # harmful (bypass)
+    a1.plot(A, rr("harmful", "refusal"), "-o", color=CRIM, lw=2.6, ms=7, label="refusal direction")
+    a1.plot(A, rr("harmful", "random"), "--s", color=GREY, lw=2.1, ms=6, label="random direction (equal size)")
+    a1.axvline(0, color="k", lw=0.7, ls=":"); a1.axhline(98, color="#bbbbbb", lw=0.8, ls="--")
+    a1.text(-1.45, 91, "no steering (α=0):\n98% refuse", fontsize=8, color="#666")
+    a1.set_xlabel("steering strength  α   (− = subtract the refusal direction)")
+    a1.set_ylabel("refusal rate (%)"); a1.set_ylim(-4, 112)
+    a1.set_title("40 harmful prompts (JailbreakBench)\nsubtracting the refusal direction bypasses refusal", color=TEAL, fontsize=10.5)
+    a1.legend(frameon=False, fontsize=8.6, loc="lower right"); a1.grid(alpha=0.25)
+    # benign (induce)
+    a2.plot(A, rr("benign", "refusal"), "-o", color=TEAL, lw=2.6, ms=7, label="refusal direction")
+    a2.plot(A, rr("benign", "random"), "--s", color=GREY, lw=2.1, ms=6, label="random direction (equal size)")
+    a2.axvline(0, color="k", lw=0.7, ls=":"); a2.axhline(0, color="#bbbbbb", lw=0.8, ls="--")
+    a2.text(-1.45, 7, "no steering (α=0):\n0% refuse", fontsize=8, color="#666")
+    a2.set_xlabel("steering strength  α   (+ = add the refusal direction)")
+    a2.set_ylabel("refusal rate (%)"); a2.set_ylim(-4, 112)
+    a2.set_title("40 benign prompts (AlpacaEval)\nadding the refusal direction induces refusal", color=TEAL, fontsize=10.5)
+    a2.legend(frameon=False, fontsize=8.6, loc="upper left"); a2.grid(alpha=0.25)
+    fig.suptitle("Steering the causal refusal direction moves refusal monotonically (a random direction does not)",
+                 fontsize=12.5, y=1.03)
+    cap(fig, "Each panel steers one fixed pool of prompts by adding α·(a direction) to the residual stream at layer "
+             "16, and compares the causal refusal direction (harmful-minus-harmless difference-in-means) against a "
+             "random direction of equal magnitude — so the prompts and the push size are held constant and only the "
+             "direction changes. Left (40 JailbreakBench harmful requests, which refuse 98% of the time unsteered): "
+             "subtracting the refusal direction (α<0) monotonically removes refusal, down to 0%; a random direction "
+             "only dents it near the largest pushes (a degradation effect, not a directional one). Right (40 "
+             "AlpacaEval benign requests, which never refuse unsteered): adding the refusal direction (α>0) "
+             "monotonically induces refusal, up to 100%; a random direction stays flat at 0%.")
+    fig.tight_layout(); fig.savefig(f"{OUT}/fig6_refusal_monotonic_2panel.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
 # ------------------------------------------------------------------ FIG 2 (refusal gate)
 def fig_refusal_gate():
@@ -244,6 +284,7 @@ def fig_harm_dose():
 if __name__ == "__main__":
     fig_harm_dose(); print("fig5 harm_doseresponse")
     fig_monotonic(); print("fig1 monotonic_vs_ushape")
+    fig_refusal_2panel(); print("fig6 refusal_monotonic_2panel")
     fig_refusal_gate(); print("fig2 refusal_gate")
     fig_output_content(); print("fig3 output_form")
     fig_harm_capability(); print("fig4 harm_capability")
