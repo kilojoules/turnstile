@@ -91,41 +91,44 @@ def fig_monotonic():
     fig.tight_layout(); fig.savefig(f"{OUT}/fig1_monotonic_vs_ushape.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
 def fig_refusal_2panel():
-    """Just the two monotonic panels of fig1 (harmful bypass + benign induce)."""
+    """The two monotonic panels, framed as COMPLIANCE (= 100 − refusal)."""
     rows = load("experiments/refusal_alpha_sweep_v1/sweep.jsonl")
     by = defaultdict(list)
     for r in rows: by[(r["set"], r["direction"], r["alpha"])].append(r)
     A = sorted(set(r["alpha"] for r in rows))
-    def rr(s, d): return [rate(by[(s, d, a)], "is_refusal") for a in A]
+    def comp(s, d): return [100 - rate(by[(s, d, a)], "is_refusal") for a in A]  # complies = does not refuse
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(11.5, 4.7))
-    # harmful (bypass)
-    a1.plot(A, rr("harmful", "refusal"), "-o", color=CRIM, lw=2.6, ms=7, label="refusal direction")
-    a1.plot(A, rr("harmful", "random"), "--s", color=GREY, lw=2.1, ms=6, label="random direction (equal size)")
-    a1.axvline(0, color="k", lw=0.7, ls=":"); a1.axhline(98, color="#bbbbbb", lw=0.8, ls="--")
-    a1.text(-1.45, 91, "no steering (α=0):\n98% refuse", fontsize=8, color="#666")
+    # harmful: subtract refusal -> comply (jailbreak)
+    a1.plot(A, comp("harmful", "refusal"), "-o", color=TEAL, lw=2.6, ms=7, label="refusal direction")
+    a1.plot(A, comp("harmful", "random"), "--s", color=GREY, lw=2.1, ms=6, label="random direction (equal size)")
+    a1.axvline(0, color="k", lw=0.7, ls=":"); a1.axhline(2, color="#bbbbbb", lw=0.8, ls="--")
+    a1.text(0.1, 9, "no steering (α=0):\n2% comply (98% refuse)", fontsize=8, color="#666")
     a1.set_xlabel("steering strength  α   (− = subtract the refusal direction)")
-    a1.set_ylabel("refusal rate (%)"); a1.set_ylim(-4, 112)
-    a1.set_title("40 harmful prompts (JailbreakBench)\nsubtracting the refusal direction bypasses refusal", color=TEAL, fontsize=10.5)
-    a1.legend(frameon=False, fontsize=8.6, loc="lower right"); a1.grid(alpha=0.25)
-    # benign (induce)
-    a2.plot(A, rr("benign", "refusal"), "-o", color=TEAL, lw=2.6, ms=7, label="refusal direction")
-    a2.plot(A, rr("benign", "random"), "--s", color=GREY, lw=2.1, ms=6, label="random direction (equal size)")
-    a2.axvline(0, color="k", lw=0.7, ls=":"); a2.axhline(0, color="#bbbbbb", lw=0.8, ls="--")
-    a2.text(-1.45, 7, "no steering (α=0):\n0% refuse", fontsize=8, color="#666")
+    a1.set_ylabel("complies with request (%)   —   for harmful prompts, = attack success")
+    a1.set_ylim(-4, 112)
+    a1.set_title("40 harmful prompts (JailbreakBench)\nsubtracting the refusal direction ⇒ it complies (jailbreak)", color=TEAL, fontsize=10.5)
+    a1.legend(frameon=False, fontsize=8.6, loc="upper right"); a1.grid(alpha=0.25)
+    # benign: add refusal -> stops complying (over-refusal)
+    a2.plot(A, comp("benign", "refusal"), "-o", color=TEAL, lw=2.6, ms=7, label="refusal direction")
+    a2.plot(A, comp("benign", "random"), "--s", color=GREY, lw=2.1, ms=6, label="random direction (equal size)")
+    a2.axvline(0, color="k", lw=0.7, ls=":"); a2.axhline(100, color="#bbbbbb", lw=0.8, ls="--")
+    a2.text(-1.45, 92, "no steering (α=0):\n100% comply", fontsize=8, color="#666")
     a2.set_xlabel("steering strength  α   (+ = add the refusal direction)")
-    a2.set_ylabel("refusal rate (%)"); a2.set_ylim(-4, 112)
-    a2.set_title("40 benign prompts (AlpacaEval)\nadding the refusal direction induces refusal", color=TEAL, fontsize=10.5)
-    a2.legend(frameon=False, fontsize=8.6, loc="upper left"); a2.grid(alpha=0.25)
-    fig.suptitle("Steering the causal refusal direction moves refusal monotonically (a random direction does not)",
-                 fontsize=12.5, y=1.03)
-    cap(fig, "Each panel steers one fixed pool of prompts by adding α·(a direction) to the residual stream at layer "
-             "16, and compares the causal refusal direction (harmful-minus-harmless difference-in-means) against a "
-             "random direction of equal magnitude — so the prompts and the push size are held constant and only the "
-             "direction changes. Left (40 JailbreakBench harmful requests, which refuse 98% of the time unsteered): "
-             "subtracting the refusal direction (α<0) monotonically removes refusal, down to 0%; a random direction "
-             "only dents it near the largest pushes (a degradation effect, not a directional one). Right (40 "
-             "AlpacaEval benign requests, which never refuse unsteered): adding the refusal direction (α>0) "
-             "monotonically induces refusal, up to 100%; a random direction stays flat at 0%.")
+    a2.set_ylabel("complies with request (%)"); a2.set_ylim(-4, 112)
+    a2.set_title("40 benign prompts (AlpacaEval)\nadding the refusal direction ⇒ it refuses (over-refusal)", color=TEAL, fontsize=10.5)
+    a2.legend(frameon=False, fontsize=8.6, loc="lower left"); a2.grid(alpha=0.25)
+    fig.suptitle("The refusal direction is a compliance knob: remove it → comply more (jailbreak); add it → comply less (refuse)",
+                 fontsize=12, y=1.03)
+    cap(fig, "Compliance = the reply addresses the request instead of refusing it, measured as 100% minus the "
+             "refusal-phrase rate (for a harmful prompt a non-refusal is a successful jailbreak; this complement "
+             "tracks the 70B attack-success judge to within ~2 points). Each panel steers one fixed pool of prompts "
+             "by adding α·(a direction) at layer 16 and compares the causal refusal direction against a random "
+             "direction of equal magnitude, so the prompts and push size are held constant and only the direction "
+             "changes. Left (40 JailbreakBench harmful requests, 2% comply unsteered): subtracting the refusal "
+             "direction (α<0) monotonically drives compliance up to 100% — i.e. it jailbreaks the model — while a "
+             "random direction only spikes near the largest, output-degrading pushes. Right (40 AlpacaEval benign "
+             "requests, 100% comply unsteered): adding the refusal direction (α>0) drives compliance down to 0% "
+             "(over-refusal); a random direction stays flat.")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig6_refusal_monotonic_2panel.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
 # ------------------------------------------------------------------ FIG 2 (refusal gate)
