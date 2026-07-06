@@ -199,43 +199,46 @@ def fig_harm_capability():
 
 # ------------------------------------------------------------------ FIG 5 (harm dose-response)
 def fig_harm_dose():
-    rows = load("experiments/add_harm_doseresponse_v1/judged.jsonl")
-    meta = json.loads(open(os.path.join(ROOT, "experiments/add_harm_doseresponse_v1/meta.json")).read())
-    rn = meta["raw_norm"]; mults = [0, 1, 2, 4, 8]
-    by = defaultdict(list)
-    for r in rows: by[r["method"]].append(r)
-    def mh(m):
-        v = [r["judge_harm_likert"] for r in by[m] if isinstance(r.get("judge_harm_likert"), (int, float))]
-        return (np.mean(v), np.std(v)/np.sqrt(len(v))) if v else (np.nan, 0)
-    def tur(m): return np.mean([r["coherence"]["token_unique_ratio"] for r in by[m]]) if by[m] else np.nan
-    x = [m*rn for m in mults]
-    hu = [mh(f"harm_m{m}")[0] for m in mults]; he = [1.96*mh(f"harm_m{m}")[1] for m in mults]
-    ru = [np.nan] + [mh(f"random_m{m}")[0] for m in mults[1:]]; re_ = [0] + [1.96*mh(f"random_m{m}")[1] for m in mults[1:]]
-    ht = [tur(f"harm_m{m}") for m in mults]; rt = [np.nan] + [tur(f"random_m{m}") for m in mults[1:]]
+    rn = 1.385; mults = [0, 1, 2, 4, 8]; x = [m*rn for m in mults]
+    def series(path):
+        rows = load(path); by = defaultdict(list)
+        for r in rows: by[r["method"]].append(r)
+        def mh(m):
+            v = [r["judge_harm_likert"] for r in by[m] if isinstance(r.get("judge_harm_likert"), (int, float))]
+            return (np.mean(v), np.std(v)/np.sqrt(len(v))) if v else (np.nan, 0)
+        def tur(m): return np.mean([r["coherence"]["token_unique_ratio"] for r in by[m]]) if by[m] else np.nan
+        return mh, tur
+    lo_mh, lo_tur = series("experiments/add_harm_doseresponse_v1/judged.jsonl")
+    hi_mh, hi_tur = series("experiments/add_harm_doseresponse_highharm_v1/judged.jsonl")
 
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(11.5, 4.6))
-    a1.axhline(hu[0], color=GREY, lw=1, ls="--", label="baseline (no push)")
-    a1.errorbar(x, hu, yerr=he, fmt="-o", color=TEAL, lw=2.4, ms=7, capsize=3, label="harm direction")
-    a1.errorbar(x[1:], ru[1:], yerr=re_[1:], fmt="--s", color=GREY, lw=2.0, ms=6, capsize=3, label="random direction")
-    a1.axvline(rn, color="#bbb", lw=0.8, ls=":"); a1.text(rn+0.2, 4.6, "fig4's\ncalibrated\ndose (1×)", fontsize=7.5, color="#666")
-    a1.axvline(9.71, color="#bbb", lw=0.8, ls=":"); a1.text(9.71-0.3, 4.6, "full residual\nnorm", fontsize=7.5, color="#666", ha="right")
+    # Panel A: absolute uplift vs push, harm(solid) vs random(dashed), for both sets
+    for mh, col, name in [(hi_mh, TEAL, "already-harmful replies"), (lo_mh, BLUE, "low-uplift replies")]:
+        hu = [mh(f"harm_m{m}")[0] for m in mults]; he = [1.96*mh(f"harm_m{m}")[1] for m in mults]
+        ru = [np.nan] + [mh(f"random_m{m}")[0] for m in mults[1:]]
+        a1.errorbar(x, hu, yerr=he, fmt="-o", color=col, lw=2.4, ms=6.5, capsize=3, label=f"{name}: harm dir")
+        a1.plot(x[1:], ru[1:], "--s", color=col, lw=1.6, ms=5, alpha=0.6, label=f"{name}: random dir")
+    a1.axvline(rn, color="#bbb", lw=0.8, ls=":"); a1.text(rn+0.2, 1.15, "calibrated\ndose (1×)", fontsize=7.3, color="#666")
+    a1.axvline(9.71, color="#bbb", lw=0.8, ls=":"); a1.text(9.71-0.3, 1.15, "full residual\nnorm", fontsize=7.3, color="#666", ha="right")
     a1.set_xlabel("push strength  (‖added vector‖)"); a1.set_ylabel("harmful uplift (Stage-B, 1–5)")
-    a1.set_ylim(1, 5); a1.set_title("Harmful uplift never rises with push strength\n(flat, then falls) — vs French, which flips at 2.3", color=CRIM)
-    a1.legend(frameon=False, fontsize=8.6, loc="upper right"); a1.grid(alpha=0.25)
-    a2.plot(x, ht, "-o", color=TEAL, lw=2.4, ms=7, label="harm direction")
-    a2.plot(x[1:], rt[1:], "--s", color=GREY, lw=2.0, ms=6, label="random direction")
+    a1.set_ylim(1, 5); a1.set_title("Uplift is flat then falls — on BOTH sets\nharm dir ≈ random dir; French flips at 2.3", color=CRIM)
+    a1.legend(frameon=False, fontsize=7.6, loc="lower left"); a1.grid(alpha=0.25)
+    # Panel B: coherence of the harm-direction arm, both sets
+    a2.plot(x, [hi_tur(f"harm_m{m}") for m in mults], "-o", color=TEAL, lw=2.4, ms=6.5, label="already-harmful replies")
+    a2.plot(x, [lo_tur(f"harm_m{m}") for m in mults], "-o", color=BLUE, lw=2.4, ms=6.5, label="low-uplift replies")
     a2.axvline(9.71, color="#bbb", lw=0.8, ls=":")
     a2.set_xlabel("push strength  (‖added vector‖)"); a2.set_ylabel("coherence  (unique-token ratio)")
-    a2.set_ylim(0.25, 0.55); a2.set_title("Pushing harder just degrades the output\n(harm direction degrades faster than random)", color=CRIM)
-    a2.legend(frameon=False, fontsize=8.6, loc="lower left"); a2.grid(alpha=0.25)
-    fig.suptitle("Dose–response: you cannot push uplift up — at any magnitude — where the model isn't already giving it",
-                 fontsize=12.5, y=1.03)
-    cap(fig, "On low-uplift compliant replies (baseline 2.24/5), adding the harm direction at increasing magnitude "
-             "leaves uplift flat (peak +0.09 at ‖·‖=2.8) and then LOWERS it as the output degrades (right panel: "
-             "unique-token ratio falls 0.47→0.33). The harm direction is marginally more harm-flavoured than a "
-             "random direction at low magnitude (+0.1–0.2) but never manufactures uplift. Contrast French, which "
-             "reaches 98% at ‖·‖=2.3 with no degradation. (An earlier win-set analysis found a larger +0.40 signal "
-             "because those replies already contained harmful content to amplify — here there is none to amplify.)")
+    a2.set_ylim(0.25, 0.55); a2.set_title("Pushing harder just degrades the output\n(that is what the small 'drop' at high push is)", color=CRIM)
+    a2.legend(frameon=False, fontsize=8.2, loc="lower left"); a2.grid(alpha=0.25)
+    fig.suptitle("Dose–response: adding the harm direction does not raise uplift, whether or not the reply is already harmful",
+                 fontsize=12, y=1.03)
+    cap(fig, "Two eval sets: replies that are already harmful (Stage-B ≥4, baseline 3.7) and low-uplift replies "
+             "(≤3, baseline 2.2). On BOTH, adding the harm direction leaves uplift statistically flat vs a random "
+             "direction (peak harm−random gap +0.13, within noise) and then LOWERS it at large push as the output "
+             "degrades (right panel). So the direction neither manufactures uplift where it's absent nor "
+             "meaningfully amplifies it where it's present — unlike French, which flips 0→98% at ‖·‖=2.3 with no "
+             "degradation. (An earlier confounded α-sweep reported a +0.40 'odd' component; it does not survive as "
+             "a clean add-vs-random effect here.)")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig5_harm_doseresponse.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
 if __name__ == "__main__":

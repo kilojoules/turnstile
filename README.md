@@ -71,15 +71,16 @@ knowledge the 8B victim lacks; steering moves representations and forms, not cap
 
 ![Harm-uplift is a capability](figures/causal_steering/fig4_harm_capability.png)
 
-**Does pushing harder help?** No. Sweeping the push magnitude from zero into the
-degradation regime (up to a full residual-stream norm) leaves uplift flat (~2.2/5, a
-trivial +0.09 peak) and then *lowers* it as coherence collapses — it never rises, at any
-magnitude, while French flips to 98% at a magnitude of 2.3 with no degradation. The harm
-direction is marginally more harm-flavoured than a random direction at low magnitude
-(+0.1–0.2) but never manufactures uplift. (An earlier analysis on already-harmful replies
-found a larger +0.40 signal because those replies *already contained* harmful content for
-the direction to amplify — on these low-uplift replies there is nothing to amplify, which
-is exactly what "capability, not representation" predicts.)
+**Does pushing harder, or picking replies that are already harmful, help?** No to both.
+Sweeping the push magnitude from zero into the degradation regime (up to a full
+residual-stream norm), on **two** eval sets — low-uplift replies (baseline 2.2/5) and
+replies that are *already harmful* (baseline 3.7/5) — uplift stays statistically flat vs
+a random direction (peak harm−random gap **+0.13, within noise**) and then *falls* at
+large push as the output degrades. So the harm direction neither manufactures uplift
+where it's absent nor meaningfully amplifies it where it's present, at any magnitude —
+while French flips 0→98% at a magnitude of 2.3 with no degradation. (An earlier
+*confounded* α-sweep reported a larger +0.40 "odd" component; it does not survive as a
+clean add-vs-random effect in either dose-response.)
 
 ![Harm dose-response](figures/causal_steering/fig5_harm_doseresponse.png)
 

@@ -65,7 +65,8 @@ def load_scored(scores_path, cands_path):
         tob = s.get("turn_of_breach"); bi = ai[tob] if (isinstance(tob, int) and tob < len(ai)) else (ai[-1] if ai else -1)
         if bi <= 0 or conv[bi-1]["role"] != "user": continue
         out.append({"rating": s["rating"], "unsafe": s.get("unsafe"), "goal": c.get("goal", ""),
-                    "category": c.get("category"), "history": conv[:bi], "response": conv[bi]["content"]})
+                    "category": c.get("category"), "history": conv[:bi], "response": conv[bi]["content"],
+                    "key": (s["source"], s["round"], s["idx"])})
     return out
 
 def main():
@@ -75,6 +76,8 @@ def main():
     ap.add_argument("--out-dir", default="experiments/add_harm_doseresponse_v1")
     ap.add_argument("--n-fit", type=int, default=80)
     ap.add_argument("--n-eval", type=int, default=45)
+    ap.add_argument("--eval-min-rating", type=int, default=1)
+    ap.add_argument("--eval-max-rating", type=int, default=3)
     args = ap.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -82,8 +85,10 @@ def main():
     data = load_scored(args.scores, args.candidates)
     hi = [d for d in data if d["rating"] >= 4][:args.n_fit]
     lo = [d for d in data if d["rating"] <= 2][:args.n_fit]
-    ev = [d for d in data if d.get("unsafe") and d["rating"] <= 3][:args.n_eval]
-    print(f"fit hi={len(hi)} lo={len(lo)} | eval={len(ev)}", flush=True)
+    fit_keys = {d["key"] for d in hi + lo}   # eval must be DISJOINT from the fit set
+    ev = [d for d in data if d.get("unsafe") and args.eval_min_rating <= d["rating"] <= args.eval_max_rating
+          and d["key"] not in fit_keys][:args.n_eval]
+    print(f"fit hi={len(hi)} lo={len(lo)} | eval={len(ev)} (rating {args.eval_min_rating}-{args.eval_max_rating}, disjoint from fit)", flush=True)
 
     print("Loading model...", flush=True)
     model, tok = load_model(device)
