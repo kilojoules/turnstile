@@ -284,7 +284,55 @@ def fig_harm_dose():
              "a clean add-vs-random effect here.)")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig5_harm_doseresponse.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
+def fig_compliance_and_harm():
+    """Compliance AND harm uplift under steering, for the refusal vs harm direction."""
+    # Panel A: refusal direction, 40 harmful prompts, vs alpha
+    ref = load("experiments/refusal_harm_vs_compliance_v1/judged.jsonl")
+    rb = defaultdict(list)
+    for r in ref: rb[r["alpha"]].append(r)
+    A = sorted(rb)
+    rc = [100*sum(1 for r in rb[a] if r.get("judge_compliance_unsafe"))/len(rb[a]) for a in A]
+    rh = [np.mean([r["judge_harm_likert"] for r in rb[a] if isinstance(r.get("judge_harm_likert"), (int, float))]) for a in A]
+    # Panel B: harm direction, compliant replies, vs magnitude
+    hd = load("experiments/add_harm_doseresponse_v1/judged.jsonl")
+    hb = defaultdict(list)
+    for r in hd: hb[r["method"]].append(r)
+    rn = 1.385; M = [0, 1, 2, 4, 8]; x2 = [m*rn for m in M]
+    def cc(m): g = hb[f"harm_m{m}"]; return 100*sum(1 for r in g if r.get("judge_compliance_unsafe"))/len(g)
+    def hh(m): g = hb[f"harm_m{m}"]; return np.mean([r["judge_harm_likert"] for r in g if isinstance(r.get("judge_harm_likert"), (int, float))])
+    hc = [cc(m) for m in M]; hu = [hh(m) for m in M]
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.7))
+    # Panel A
+    a1.plot(A, rc, "-o", color=TEAL, lw=2.5, ms=6.5)
+    a1.set_ylabel("complies / attack success (%)", color=TEAL); a1.tick_params(axis="y", labelcolor=TEAL)
+    a1.set_ylim(-4, 100); a1.set_xlabel("steering strength  α   (− = subtract refusal direction)")
+    a1b = a1.twinx(); a1b.plot(A, rh, "-s", color=CRIM, lw=2.5, ms=6)
+    a1b.set_ylabel("harm uplift (Stage-B, 1–5)", color=CRIM); a1b.tick_params(axis="y", labelcolor=CRIM)
+    a1b.set_ylim(1, 5); a1b.axhline(4, color=CRIM, lw=0.7, ls=":"); a1b.text(0.1, 4.05, "'meaningful uplift' (4)", fontsize=7, color=CRIM)
+    a1.set_title("Steer the REFUSAL direction (40 harmful prompts)\ncompliance jumps 2→62%; harm follows only to ~2.3/5", color="k", fontsize=10.5)
+    a1.axvline(0, color="k", lw=0.6, ls=":")
+    # Panel B
+    a2.plot(x2, hc, "-o", color=TEAL, lw=2.5, ms=6.5)
+    a2.set_ylabel("complies (%)", color=TEAL); a2.tick_params(axis="y", labelcolor=TEAL)
+    a2.set_ylim(-4, 100); a2.set_xlabel("push strength  (‖added vector‖)")
+    a2b = a2.twinx(); a2b.plot(x2, hu, "-s", color=CRIM, lw=2.5, ms=6)
+    a2b.set_ylabel("harm uplift (Stage-B, 1–5)", color=CRIM); a2b.tick_params(axis="y", labelcolor=CRIM)
+    a2b.set_ylim(1, 5); a2b.axhline(4, color=CRIM, lw=0.7, ls=":")
+    a2.set_title("Steer the HARM direction (compliant replies)\nneither compliance nor harm moves (flat)", color="k", fontsize=10.5)
+    fig.suptitle("Compliance (teal) and harm uplift (crimson) under steering — the refusal direction is a compliance knob; the harm direction moves neither",
+                 fontsize=11.5, y=1.03)
+    cap(fig, "Left: subtracting the refusal direction from 40 JailbreakBench harmful prompts drives compliance (70B "
+             "attack-success judge) from 2% up to 62%, and the harm uplift of those replies rises with it — but only "
+             "to ~2.3/5 (Stage-B 'marginal/web-equivalent'), never reaching the '4 = meaningful uplift' line, then "
+             "both fall at the largest push as output degrades. Right: adding the harm direction to already-compliant "
+             "replies (baseline 36% comply) leaves BOTH compliance and harm flat at every magnitude — same as a "
+             "random direction. NOTE: the two panels use different prompt sets and x-axes; unifying them into a "
+             "single matched experiment (all directions, both sets, one grid, one judge) is a pending follow-up.")
+    fig.tight_layout(); fig.savefig(f"{OUT}/fig7_compliance_and_harm.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
 if __name__ == "__main__":
+    fig_compliance_and_harm(); print("fig7 compliance_and_harm")
     fig_harm_dose(); print("fig5 harm_doseresponse")
     fig_monotonic(); print("fig1 monotonic_vs_ushape")
     fig_refusal_2panel(); print("fig6 refusal_monotonic_2panel")

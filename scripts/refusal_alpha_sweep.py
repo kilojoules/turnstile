@@ -70,6 +70,8 @@ def main():
     ap.add_argument("--out-dir", default="experiments/refusal_alpha_sweep_v1")
     ap.add_argument("--n-fit", type=int, default=50)
     ap.add_argument("--n-eval", type=int, default=40)
+    ap.add_argument("--save-responses", action="store_true")
+    ap.add_argument("--harmful-only", action="store_true")
     args = ap.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -110,18 +112,26 @@ def main():
                 for i, p in enumerate(prompts):
                     if (setname, direction_name, a, i) in done: continue
                     resp = gen(model, tok, p)
-                    fout.write(json.dumps({"set": setname, "direction": direction_name, "alpha": a,
-                                           "prompt_id": i, "is_refusal": is_refusal(resp),
-                                           "coherence": coherence(resp, tok)}) + "\n")
+                    row = {"set": setname, "direction": direction_name, "alpha": a,
+                           "prompt_id": i, "is_refusal": is_refusal(resp),
+                           "coherence": coherence(resp, tok)}
+                    if args.save_responses:
+                        row["response"] = resp
+                        row["goal"] = p                      # for the harm judge
+                        row["method"] = f"{setname}_{direction_name}_a{a:g}"
+                    fout.write(json.dumps(row) + "\n")
                     fout.flush()
             finally:
                 if hook: hook.remove()
             print(f"  [{setname}/{direction_name}/a={a}] done", flush=True)
 
-    run("benign", b_eval, "refusal", raw)
-    run("harmful", h_eval, "refusal", raw)
-    run("benign", b_eval, "random", rand)
-    run("harmful", h_eval, "random", rand)   # control on the harmful set (apples-to-apples)
+    if args.harmful_only:
+        run("harmful", h_eval, "refusal", raw)   # harm-vs-compliance: keep responses, judge harm after
+    else:
+        run("benign", b_eval, "refusal", raw)
+        run("harmful", h_eval, "refusal", raw)
+        run("benign", b_eval, "random", rand)
+        run("harmful", h_eval, "random", rand)   # control on the harmful set (apples-to-apples)
     fout.close()
     print("DONE", flush=True)
 
