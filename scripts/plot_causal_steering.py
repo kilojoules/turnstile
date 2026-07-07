@@ -418,7 +418,155 @@ def fig_harm_vs_compliance():
              "direction steers NEITHER harm NOR compliance — it only breaks the model.")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig9_harm_vs_compliance.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
+# ============================================================ SUMMARY FIGURES
+def fig_s1_scoreboard():
+    """The thesis in one grid: gate / form / capability × ADD / ABLATE / causal."""
+    from matplotlib.patches import Rectangle
+    GRN, AMB, RED = "#cdebd6", "#f6e6c5", "#f4d0d0"
+    rows = [
+        ("Refusal\n(GATE)", [
+            (GRN, "✓  induce\n0→64% refuse"), (GRN, "✓  bypass\n98→68% ref\n2→32% ASR"), (GRN, "✓  Arditi\nreplicates")]),
+        ("Language / verbosity\n(output FORM)", [
+            (GRN, "✓  French\n0→98%\nverbose 22→89"), (AMB, "~  weak\nFrench 100→90"), (GRN, "✓  (add\ndirection)")]),
+        ("Harm uplift\n(CAPABILITY)", [
+            (RED, "✗  +0.1\n≈ random"), (RED, "✗  Δ≈0\n≈ random"), (GREY_L := "#e4e4e4", "readout only\nAUC 0.88")]),
+    ]
+    heads = ["", "ADD  (inject)", "ABLATE  (remove)", "causal?"]
+    fig, ax = plt.subplots(figsize=(11, 5.8)); ax.set_xlim(0, 4); ax.set_ylim(-0.55, 4.6); ax.axis("off")
+    cw = [1.35, 0.88, 0.88, 0.89]; x0 = [0, 1.35, 2.23, 3.11]; H = 0.9
+    ax.text(2, 4.4, "One taxonomy: three DIFFERENT KINDS of object, not three directions of differing strength",
+            ha="center", fontsize=11.5, fontweight="bold")
+    for j, h in enumerate(heads):
+        ax.text(x0[j]+cw[j]/2, 3.9, h, ha="center", va="center", fontsize=10.5, fontweight="bold")
+    ybase = [2.75, 1.6, 0.45]
+    for i, (label, cells) in enumerate(rows):
+        y = ybase[i]
+        ax.text(x0[0]+cw[0]/2, y+H/2, label, ha="center", va="center", fontsize=10, fontweight="bold")
+        for j, (col, txt) in enumerate(cells):
+            ax.add_patch(Rectangle((x0[j+1]+0.02, y), cw[j+1]-0.04, H, facecolor=col, edgecolor="white", lw=2))
+            ax.text(x0[j+1]+cw[j+1]/2, y+H/2, txt, ha="center", va="center", fontsize=8.6)
+    ax.text(2, -0.3, "A steering vector can flip a behavioral GATE and can inject output FORM — but it cannot conjure a "
+            "CAPABILITY the model lacks.\nThat is why ASR (a gate flip) overstates harm (a capability): the gate is trivially "
+            "steerable, the capability is not.", ha="center", fontsize=8.8, style="italic", color="#333")
+    fig.savefig(f"{OUT}/figS1_scoreboard.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
+def fig_s2_asr_neq_harm():
+    """Money plot: open the compliance gate → ASR climbs to 62%, harm plateaus at the capability ceiling."""
+    by = defaultdict(list)
+    for r in load("experiments/refusal_harm_vs_compliance_v1/judged.jsonl"): by[r["alpha"]].append(r)
+    A = sorted(by)
+    comp = [100*sum(1 for r in by[a] if r.get("judge_compliance_unsafe"))/len(by[a]) for a in A]
+    harm = [np.mean([r["judge_harm_likert"] for r in by[a] if isinstance(r.get("judge_harm_likert"), (int, float))]) for a in A]
+    fig, ax = plt.subplots(figsize=(8.6, 5.2))
+    ax.plot(A, comp, "-o", color=TEAL, lw=3, ms=7, label="compliance / attack success")
+    ax.set_ylabel("compliance / attack success (%)", color=TEAL, fontsize=11); ax.tick_params(axis="y", labelcolor=TEAL)
+    ax.set_ylim(-4, 100); ax.set_xlabel("steering strength  α    (subtract the refusal direction  →)", fontsize=10.5)
+    ax.invert_xaxis()
+    axb = ax.twinx(); axb.plot(A, harm, "-s", color=CRIM, lw=3, ms=6.5, label="harm uplift")
+    axb.set_ylabel("harm uplift (Stage-B, 1–5)", color=CRIM, fontsize=11); axb.tick_params(axis="y", labelcolor=CRIM)
+    axb.set_ylim(1, 5); axb.axhspan(1, 2.4, color=CRIM, alpha=0.07)
+    axb.axhline(2.3, color=CRIM, lw=0.9, ls="--"); axb.text(1.45, 2.42, "capability ceiling (~2.3)", fontsize=8.5, color=CRIM, ha="left")
+    axb.axhline(4, color=CRIM, lw=0.8, ls=":"); axb.text(1.45, 4.06, "'meaningful uplift' (4) — never reached", fontsize=8, color=CRIM, ha="left")
+    ax.annotate("", xy=(-1.0, 62), xytext=(-1.0, 26.5), arrowprops=dict(arrowstyle="<->", color="#444", lw=1.4))
+    ax.text(-1.06, 44, "the GAP\n= the finding", fontsize=9, ha="right", color="#222", fontweight="bold")
+    ax.set_title("ASR ≠ harm:  opening the compliance gate drives attack success to 62%,\nbut harm plateaus at the model's capability ceiling",
+                 fontsize=11.5)
+    cap(fig, "Subtracting the refusal direction from 40 JailbreakBench harmful prompts (Llama-70B judged). Attack "
+             "success climbs 2→62% as the gate opens, but the harm uplift of those compliant replies saturates at "
+             "~2.3/5 ('marginal / web-equivalent') and never reaches meaningful uplift. The vertical gap between the "
+             "two curves is the paper's thesis: a jailbreak metric counts the gate flip, not the (capped) harm behind it.")
+    fig.tight_layout(); fig.savefig(f"{OUT}/figS2_asr_neq_harm.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
+def fig_s3_mechanism_triptych():
+    """Same mechanism (ADD a direction): output FORM flips, CAPABILITY doesn't."""
+    fr = defaultdict(list); vb = defaultdict(list)
+    import re
+    FRW = re.compile(r'\b(le|la|les|un|une|des|est|et|dans|pour|avec|sur)\b', re.I)
+    isfr = lambda t: bool(re.search(r'[àâçéèêëîïôûùü]', t)) and len(FRW.findall(t)) >= 3
+    for r in load("experiments/output_content_control_v1/generations.jsonl"):
+        (fr if r["prop"] == "french" else vb)[r["arm"]].append(r["response"])
+    frv = {k: 100*sum(isfr(t) for t in v)/len(v) for k, v in fr.items()}
+    vbv = {k: np.mean([len(t.split()) for t in v]) for k, v in vb.items()}
+    hb = defaultdict(list)
+    for r in load("experiments/add_harm_v1/judged.jsonl"): hb[r["method"]].append(r)
+    hmean = lambda m: np.mean([r["judge_harm_likert"] for r in hb[m] if isinstance(r.get("judge_harm_likert"), (int, float))])
+    panels = [
+        ("ADD 'French'\n(output FORM)  ✓", ["baseline", "add\ndirection", "add\nrandom"],
+         [frv["add_baseline"], frv["add_prop"], frv["add_random"]], "% replies in French", 100, TEAL),
+        ("ADD 'verbose'\n(output FORM)  ✓", ["baseline", "add\ndirection", "add\nrandom"],
+         [vbv["add_baseline"], vbv["add_prop"], vbv["add_random"]], "mean response length (tokens)", 100, TEAL),
+        ("ADD 'harm'\n(CAPABILITY)  ✗", ["baseline", "add\ndirection", "add\nrandom"],
+         [hmean("baseline"), hmean("add_harm_1x"), hmean("add_random_1x")], "harm uplift (Stage-B, 1–5)", 5, CRIM),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.5))
+    for ax, (title, labs, vals, ylab, ymax, hl) in zip(axes, panels):
+        bars = ax.bar([0, 1, 2], vals, color=["#cccccc", hl, "#e0e0e0"], edgecolor="k", lw=0.6, width=0.62)
+        for b, v in zip(bars, vals): ax.text(b.get_x()+b.get_width()/2, v+ymax*0.02, f"{v:.0f}" if ymax>10 else f"{v:.2f}", ha="center", fontsize=9.5)
+        ax.set_xticks([0, 1, 2]); ax.set_xticklabels(labs, fontsize=9); ax.set_ylim(0 if ymax>10 else 1, ymax if ymax>10 else 5)
+        ax.set_ylabel(ylab, fontsize=9.5); ax.set_title(title, fontsize=10.5, color=hl); ax.grid(axis="y", alpha=0.25)
+    fig.suptitle("One mechanism (ADD the direction at L16), three concepts: the SAME operation flips output FORM but cannot move CAPABILITY",
+                 fontsize=11.5, y=1.02)
+    cap(fig, "Identical intervention — add a concept's diff-in-means direction to the residual stream — applied to three "
+             "concepts, each with its own add-random control. Language and verbosity (output FORM) flip decisively "
+             "(French 0→98%, length 22→89 tokens) while add-random does nothing. Harm uplift (a CAPABILITY) does not "
+             "move (2.20→2.27 ≈ add-random 2.16). Same knob, opposite outcome: form is injectable, capability is not.")
+    fig.tight_layout(); fig.savefig(f"{OUT}/figS3_mechanism_triptych.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
+def fig_s4_readout_not_lever():
+    """Distills fig8+fig9: harm dir moves neither harm (any judge/set) nor compliance (only via gibberish)."""
+    U = STEER_UNIT
+    L = defaultdict(list); Q = defaultdict(list)
+    for r in load("experiments/harm_steer_matrix_v1/judged_llama.jsonl"): L[(r["set"], r["direction"], r["magnitude"])].append(r)
+    for r in load("experiments/harm_steer_matrix_v1/judged_qwen.jsonl"): Q[(r["set"], r["direction"], r["magnitude"])].append(r)
+    mags = [0.0, 2.8, 5.5, 11.1]; xa = [m/U for m in mags]
+    def hh(by, s, d):
+        out = []
+        for m in mags:
+            k = (s, "baseline", 0.0) if m == 0 else (s, d, m)
+            v = [r["judge_harm_likert"] for r in by[k] if isinstance(r.get("judge_harm_likert"), (int, float))]
+            out.append(np.mean(v) if v else np.nan)
+        return out
+    sc = defaultdict(list)
+    for r in load("experiments/steer_compare_v1/judged_llama.jsonl"):
+        if r["set"] == "harmful": sc[(r["direction"], r["alpha"])].append(r)
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12.5, 4.7))
+    styles = [("low", "Llama", "-", TEAL), ("low", "Qwen", "--", TEAL), ("high", "Llama", "-", "#7b3fa0"), ("high", "Qwen", "--", "#7b3fa0")]
+    for s, jn, ls, c in styles:
+        by = L if jn == "Llama" else Q
+        a1.plot(xa, hh(by, s, "harm_llama"), ls+"o", color=c, lw=2, ms=5, label=f"{s}-uplift · {jn} judge")
+    a1.axhline(4, color=CRIM, lw=0.7, ls=":"); a1.text(0.05, 4.06, "meaningful uplift (4)", fontsize=7.5, color=CRIM)
+    a1.set_ylim(1, 5); a1.set_xlabel("steering strength  α   (add harm direction)"); a1.set_ylabel("harm uplift (Stage-B, 1–5)")
+    a1.set_title("Harm: flat on every set & judge\n(never rises; falls when pushed hard)", fontsize=10)
+    a1.legend(frameon=False, fontsize=7.6, loc="upper right"); a1.grid(alpha=0.25)
+    # right: harm-dir compliance vs coherence on harmful prompts
+    pts = []
+    for (d, al), g in sc.items():
+        if d != "harm": continue
+        comp = 100*sum(1 for r in g if r.get("judge_compliance_unsafe"))/len(g)
+        coh = np.mean([r["coherence"]["token_unique_ratio"] for r in g])
+        pts.append((coh, comp, al))
+    pts.sort()
+    a2.axvspan(0, 0.6, color="#f2d0d0", alpha=0.5); a2.text(0.04, 55, "output\ndegraded", fontsize=8.5, color=CRIM)
+    a2.plot([p[0] for p in pts], [p[1] for p in pts], "o-", color="#7b3fa0", lw=1.8, ms=8)
+    for coh, comp, al in pts: a2.annotate(f"α={al:g}", (coh, comp), textcoords="offset points", xytext=(6, 5), fontsize=8)
+    a2.set_xlim(0, 1); a2.set_ylim(-4, 70); a2.set_xlabel("coherence  (unique-token ratio)")
+    a2.set_ylabel("compliance / attack success (%)"); a2.grid(alpha=0.25)
+    a2.set_title("Compliance appears ONLY where output\nhas collapsed to gibberish (= false-positive)", fontsize=10)
+    fig.suptitle("The harm direction is a READOUT, not a LEVER — it moves neither harm nor (real) compliance",
+                 fontsize=11.5, y=1.0)
+    cap(fig, "LEFT (from the dual-judge matrix): adding the harm direction leaves uplift flat on both the low- and "
+             "already-harmful sets under both Llama and Qwen judges — it never approaches meaningful uplift and only "
+             "falls at large push. RIGHT (headroom test on harmful prompts): the harm direction's only non-zero "
+             "compliance (30%) occurs at the α where coherence has collapsed to 0.32 — i.e. a degradation "
+             "false-positive, not a real bypass; at coherence-preserving magnitudes it stays at 0%. So the harm "
+             "direction is a clean readout (AUC 0.88) but causally inert in both dimensions; the refusal direction is the only real knob.")
+    fig.tight_layout(); fig.savefig(f"{OUT}/figS4_readout_not_lever.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
 if __name__ == "__main__":
+    fig_s1_scoreboard(); print("figS1 scoreboard")
+    fig_s2_asr_neq_harm(); print("figS2 asr_neq_harm")
+    fig_s3_mechanism_triptych(); print("figS3 mechanism_triptych")
+    fig_s4_readout_not_lever(); print("figS4 readout_not_lever")
     fig_harm_vs_compliance(); print("fig9 harm_vs_compliance")
     fig_harm_matrix_dualjudge(); print("fig8 harm_matrix_dualjudge")
     fig_compliance_and_harm(); print("fig7 compliance_and_harm")
