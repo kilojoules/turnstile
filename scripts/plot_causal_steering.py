@@ -24,6 +24,7 @@ OUT = os.path.join(ROOT, "figures", "causal_steering")
 os.makedirs(OUT, exist_ok=True)
 
 GREY, TEAL, CRIM, RAND, BLUE = "#8a8a8a", "#1b9e77", "#d1495b", "#c9c9c9", "#3a6ea5"
+STEER_UNIT = 7.563   # refusal diff-in-means norm; α is defined so α × STEER_UNIT = ‖added vector‖
 plt.rcParams.update({"axes.titlesize": 11, "font.size": 10})
 
 def load(p): return [json.loads(l) for l in open(os.path.join(ROOT, p))]
@@ -242,7 +243,7 @@ def fig_harm_capability():
 
 # ------------------------------------------------------------------ FIG 5 (harm dose-response)
 def fig_harm_dose():
-    rn = 1.385; mults = [0, 1, 2, 4, 8]; x = [m*rn for m in mults]
+    rn = 1.385; mults = [0, 1, 2, 4, 8]; x = [m*rn/STEER_UNIT for m in mults]   # α units
     def series(path):
         rows = load(path); by = defaultdict(list)
         for r in rows: by[r["method"]].append(r)
@@ -261,16 +262,16 @@ def fig_harm_dose():
         ru = [np.nan] + [mh(f"random_m{m}")[0] for m in mults[1:]]
         a1.errorbar(x, hu, yerr=he, fmt="-o", color=col, lw=2.4, ms=6.5, capsize=3, label=f"{name}: harm dir")
         a1.plot(x[1:], ru[1:], "--s", color=col, lw=1.6, ms=5, alpha=0.6, label=f"{name}: random dir")
-    a1.axvline(rn, color="#bbb", lw=0.8, ls=":"); a1.text(rn+0.2, 1.15, "calibrated\ndose (1×)", fontsize=7.3, color="#666")
-    a1.axvline(9.71, color="#bbb", lw=0.8, ls=":"); a1.text(9.71-0.3, 1.15, "full residual\nnorm", fontsize=7.3, color="#666", ha="right")
-    a1.set_xlabel("push strength  (‖added vector‖)"); a1.set_ylabel("harmful uplift (Stage-B, 1–5)")
-    a1.set_ylim(1, 5); a1.set_title("Uplift is flat then falls — on BOTH sets\nharm dir ≈ random dir; French flips at 2.3", color=CRIM)
+    a1.axvline(rn/STEER_UNIT, color="#bbb", lw=0.8, ls=":"); a1.text(rn/STEER_UNIT+0.03, 1.15, "calibrated\ndose", fontsize=7.3, color="#666")
+    a1.axvline(9.71/STEER_UNIT, color="#bbb", lw=0.8, ls=":"); a1.text(9.71/STEER_UNIT-0.04, 1.15, "full residual\nnorm", fontsize=7.3, color="#666", ha="right")
+    a1.set_xlabel("steering strength  α   (α×7.56 = ‖added vector‖)"); a1.set_ylabel("harmful uplift (Stage-B, 1–5)")
+    a1.set_ylim(1, 5); a1.set_title("Uplift is flat then falls — on BOTH sets\nharm dir ≈ random dir; French flips at α≈0.3", color=CRIM)
     a1.legend(frameon=False, fontsize=7.6, loc="lower left"); a1.grid(alpha=0.25)
     # Panel B: coherence of the harm-direction arm, both sets
     a2.plot(x, [hi_tur(f"harm_m{m}") for m in mults], "-o", color=TEAL, lw=2.4, ms=6.5, label="already-harmful replies")
     a2.plot(x, [lo_tur(f"harm_m{m}") for m in mults], "-o", color=BLUE, lw=2.4, ms=6.5, label="low-uplift replies")
-    a2.axvline(9.71, color="#bbb", lw=0.8, ls=":")
-    a2.set_xlabel("push strength  (‖added vector‖)"); a2.set_ylabel("coherence  (unique-token ratio)")
+    a2.axvline(9.71/STEER_UNIT, color="#bbb", lw=0.8, ls=":")
+    a2.set_xlabel("steering strength  α   (α×7.56 = ‖added vector‖)"); a2.set_ylabel("coherence  (unique-token ratio)")
     a2.set_ylim(0.25, 0.55); a2.set_title("Pushing harder just degrades the output\n(that is what the small 'drop' at high push is)", color=CRIM)
     a2.legend(frameon=False, fontsize=8.2, loc="lower left"); a2.grid(alpha=0.25)
     fig.suptitle("Dose–response: adding the harm direction does not raise uplift, whether or not the reply is already harmful",
@@ -279,7 +280,7 @@ def fig_harm_dose():
              "(≤3, baseline 2.2). On BOTH, adding the harm direction leaves uplift statistically flat vs a random "
              "direction (peak harm−random gap +0.13, within noise) and then LOWERS it at large push as the output "
              "degrades (right panel). So the direction neither manufactures uplift where it's absent nor "
-             "meaningfully amplifies it where it's present — unlike French, which flips 0→98% at ‖·‖=2.3 with no "
+             "meaningfully amplifies it where it's present — unlike French, which flips 0→98% at α≈0.3 with no "
              "degradation. (An earlier confounded α-sweep reported a +0.40 'odd' component; it does not survive as "
              "a clean add-vs-random effect here.)")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig5_harm_doseresponse.png", dpi=140, bbox_inches="tight"); plt.close(fig)
@@ -343,7 +344,7 @@ def fig_harm_matrix_dualjudge():
     lla = defaultdict(list); qwe = defaultdict(list)
     for r in load("experiments/harm_steer_matrix_v1/judged_llama.jsonl"): lla[(r["set"], r["direction"], r["magnitude"])].append(r)
     for r in load("experiments/harm_steer_matrix_v1/judged_qwen.jsonl"): qwe[(r["set"], r["direction"], r["magnitude"])].append(r)
-    mags = [0.0, 2.8, 5.5, 11.1]
+    mags = [0.0, 2.8, 5.5, 11.1]; xa = [m/STEER_UNIT for m in mags]   # α units (α×7.56 = ‖added vector‖)
     def harm(by, s, d):
         ys = []
         for m in mags:
@@ -361,16 +362,16 @@ def fig_harm_matrix_dualjudge():
             ax.axhline(b, color="#bbb", lw=1, ls="--")
             for d in ["harm_llama", "harm_qwen", "random"]:
                 ls = "-" if d != "random" else "--"
-                ax.plot(mags, harm(by, s, d), ls+"o", color=cols[d], lw=2.3, ms=6, label=labs[d])
+                ax.plot(xa, harm(by, s, d), ls+"o", color=cols[d], lw=2.3, ms=6, label=labs[d])
             ax.set_ylim(1, 5); ax.grid(alpha=0.25)
             ax.axhline(4, color=CRIM, lw=0.7, ls=":")
             ax.set_title(f"{'low-uplift' if s=='low' else 'already-harmful'} replies  ·  {jn}", fontsize=10)
-            if i == 1: ax.set_xlabel("push strength  (‖added vector‖)")
+            if i == 1: ax.set_xlabel("steering strength  α   (α×7.56 = ‖added vector‖)")
             if j == 0: ax.set_ylabel(f"harm uplift (1–5)\nbaseline {b:.1f}")
             if i == 0 and j == 0: ax.legend(frameon=False, fontsize=8, loc="lower left")
     fig.suptitle("Adding the harm direction never raises uplift — robust to the fitting judge (Llama/Qwen),\nthe eval set (low/high), and the scoring judge (Llama/Qwen). It only falls, as large pushes degrade output.",
                  fontsize=11.5, y=1.0)
-    cap(fig, "Each panel: Stage-B harm uplift vs push magnitude when ADDING a harm direction, for two harm directions "
+    cap(fig, "Each panel: Stage-B harm uplift vs steering strength α (α×7.56 = ‖added vector‖) when ADDING a harm direction, for two harm directions "
              "(fit on Llama-labelled vs Qwen-labelled Stage-B wins; they are nearly identical, cos=0.93) and a random "
              "control, on two eval sets, scored by two judges. In all four panels the harm-direction curves sit on top "
              "of the random curve and the baseline (grey dashed) and never approach '4 = meaningful uplift' (red dotted); "
