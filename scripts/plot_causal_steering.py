@@ -338,7 +338,48 @@ def fig_compliance_and_harm():
              "harm direction itself moves nothing. (Different prompt sets per panel; a single matched sweep is pending.)")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig7_compliance_and_harm.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
+def fig_harm_matrix_dualjudge():
+    """2×2: harm uplift vs magnitude for {harm_llama, harm_qwen, random}, per set × judge."""
+    lla = defaultdict(list); qwe = defaultdict(list)
+    for r in load("experiments/harm_steer_matrix_v1/judged_llama.jsonl"): lla[(r["set"], r["direction"], r["magnitude"])].append(r)
+    for r in load("experiments/harm_steer_matrix_v1/judged_qwen.jsonl"): qwe[(r["set"], r["direction"], r["magnitude"])].append(r)
+    mags = [0.0, 2.8, 5.5, 11.1]
+    def harm(by, s, d):
+        ys = []
+        for m in mags:
+            k = (s, "baseline", 0.0) if m == 0.0 else (s, d, m)
+            v = [r["judge_harm_likert"] for r in by[k] if isinstance(r.get("judge_harm_likert"), (int, float))]
+            ys.append(np.mean(v) if v else np.nan)
+        return ys
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8), sharex=True)
+    cols = {"harm_llama": TEAL, "harm_qwen": "#7b3fa0", "random": GREY}
+    labs = {"harm_llama": "harm dir (Llama-fit)", "harm_qwen": "harm dir (Qwen-fit)", "random": "random"}
+    for i, s in enumerate(["low", "high"]):
+        for j, (by, jn) in enumerate([(lla, "Llama-70B judge"), (qwe, "Qwen-72B judge")]):
+            ax = axes[i][j]
+            b = harm(by, s, "harm_llama")[0]
+            ax.axhline(b, color="#bbb", lw=1, ls="--")
+            for d in ["harm_llama", "harm_qwen", "random"]:
+                ls = "-" if d != "random" else "--"
+                ax.plot(mags, harm(by, s, d), ls+"o", color=cols[d], lw=2.3, ms=6, label=labs[d])
+            ax.set_ylim(1, 5); ax.grid(alpha=0.25)
+            ax.axhline(4, color=CRIM, lw=0.7, ls=":")
+            ax.set_title(f"{'low-uplift' if s=='low' else 'already-harmful'} replies  ·  {jn}", fontsize=10)
+            if i == 1: ax.set_xlabel("push strength  (‖added vector‖)")
+            if j == 0: ax.set_ylabel(f"harm uplift (1–5)\nbaseline {b:.1f}")
+            if i == 0 and j == 0: ax.legend(frameon=False, fontsize=8, loc="lower left")
+    fig.suptitle("Adding the harm direction never raises uplift — robust to the fitting judge (Llama/Qwen),\nthe eval set (low/high), and the scoring judge (Llama/Qwen). It only falls, as large pushes degrade output.",
+                 fontsize=11.5, y=1.0)
+    cap(fig, "Each panel: Stage-B harm uplift vs push magnitude when ADDING a harm direction, for two harm directions "
+             "(fit on Llama-labelled vs Qwen-labelled Stage-B wins; they are nearly identical, cos=0.93) and a random "
+             "control, on two eval sets, scored by two judges. In all four panels the harm-direction curves sit on top "
+             "of the random curve and the baseline (grey dashed) and never approach '4 = meaningful uplift' (red dotted); "
+             "at the largest push all curves fall as the output degrades. Compliance behaves the same (harm dirs ≈ random). "
+             "So 'harm is not add-steerable' holds regardless of which judge defines the direction or scores the outcome.")
+    fig.tight_layout(); fig.savefig(f"{OUT}/fig8_harm_matrix_dualjudge.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
 if __name__ == "__main__":
+    fig_harm_matrix_dualjudge(); print("fig8 harm_matrix_dualjudge")
     fig_compliance_and_harm(); print("fig7 compliance_and_harm")
     fig_harm_dose(); print("fig5 harm_doseresponse")
     fig_monotonic(); print("fig1 monotonic_vs_ushape")
