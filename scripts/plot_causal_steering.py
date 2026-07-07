@@ -297,7 +297,8 @@ def fig_compliance_and_harm():
     hd = load("experiments/add_harm_doseresponse_v1/judged.jsonl")
     hb = defaultdict(list)
     for r in hd: hb[r["method"]].append(r)
-    rn = 1.385; M = [0, 1, 2, 4, 8]; x2 = [m*rn for m in M]
+    # express the harm sweep in the SAME α units as the refusal panel: α = ‖added vector‖ / REF_NORM
+    rn = 1.385; REF_NORM = 7.563; M = [0, 1, 2, 4, 8]; x2 = [m*rn/REF_NORM for m in M]
     def cc(m): g = hb[f"harm_m{m}"]; return 100*sum(1 for r in g if r.get("judge_compliance_unsafe"))/len(g)
     def hh(m): g = hb[f"harm_m{m}"]; return np.mean([r["judge_harm_likert"] for r in g if isinstance(r.get("judge_harm_likert"), (int, float))])
     hc = [cc(m) for m in M]; hu = [hh(m) for m in M]
@@ -306,7 +307,8 @@ def fig_compliance_and_harm():
     # Panel A
     a1.plot(A, rc, "-o", color=TEAL, lw=2.5, ms=6.5)
     a1.set_ylabel("complies / attack success (%)", color=TEAL); a1.tick_params(axis="y", labelcolor=TEAL)
-    a1.set_ylim(-4, 100); a1.set_xlabel("steering strength  α   (− = subtract refusal direction)")
+    a1.set_ylim(-4, 100); a1.set_xlim(-1.65, 1.65)
+    a1.set_xlabel("steering strength  α   (α×7.56 = ‖added vector‖;  − = subtract refusal dir)")
     a1b = a1.twinx(); a1b.plot(A, rh, "-s", color=CRIM, lw=2.5, ms=6)
     a1b.set_ylabel("harm uplift (Stage-B, 1–5)", color=CRIM); a1b.tick_params(axis="y", labelcolor=CRIM)
     a1b.set_ylim(1, 5); a1b.axhline(4, color=CRIM, lw=0.7, ls=":"); a1b.text(0.1, 4.05, "'meaningful uplift' (4)", fontsize=7, color=CRIM)
@@ -315,7 +317,10 @@ def fig_compliance_and_harm():
     # Panel B
     a2.plot(x2, hc, "-o", color=TEAL, lw=2.5, ms=6.5)
     a2.set_ylabel("complies (%)", color=TEAL); a2.tick_params(axis="y", labelcolor=TEAL)
-    a2.set_ylim(-4, 100); a2.set_xlabel("push strength  (‖added vector‖)")
+    a2.set_ylim(-4, 100); a2.set_xlim(-1.65, 1.65)
+    a2.axvline(0, color="k", lw=0.6, ls=":")
+    a2.text(-1.55, 50, "(only the +α / add\nside was swept)", fontsize=7.5, color="#888")
+    a2.set_xlabel("steering strength  α   (same α×7.56 = ‖added vector‖;  + = add harm dir)")
     a2b = a2.twinx(); a2b.plot(x2, hu, "-s", color=CRIM, lw=2.5, ms=6)
     a2b.set_ylabel("harm uplift (Stage-B, 1–5)", color=CRIM); a2b.tick_params(axis="y", labelcolor=CRIM)
     a2b.set_ylim(1, 5); a2b.axhline(4, color=CRIM, lw=0.7, ls=":")
@@ -327,8 +332,10 @@ def fig_compliance_and_harm():
              "to ~2.3/5 (Stage-B 'marginal/web-equivalent'), never reaching the '4 = meaningful uplift' line, then "
              "both fall at the largest push as output degrades. Right: adding the harm direction to already-compliant "
              "replies (baseline 36% comply) leaves BOTH compliance and harm flat at every magnitude — same as a "
-             "random direction. NOTE: the two panels use different prompt sets and x-axes; unifying them into a "
-             "single matched experiment (all directions, both sets, one grid, one judge) is a pending follow-up.")
+             "random direction. Both x-axes are now the same α (α×7.56 = the norm of the added vector); the refusal "
+             "panel sweeps both signs (−α subtracts/bypasses), the harm panel only +α (adds). NOTE: the two panels "
+             "still use different prompt sets; a single matched experiment (all directions, both sets, one grid, one "
+             "judge) is a pending follow-up.")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig7_compliance_and_harm.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
 if __name__ == "__main__":
