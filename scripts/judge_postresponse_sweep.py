@@ -93,13 +93,13 @@ ASSISTANT RESPONSE:
 """
 
 
-def load_model():
+def load_model(model_id=MODEL_ID):
     bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16)
-    tok = AutoTokenizer.from_pretrained(MODEL_ID)
+    tok = AutoTokenizer.from_pretrained(model_id)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID, quantization_config=bnb, device_map="auto", torch_dtype=torch.bfloat16)
+        model_id, quantization_config=bnb, device_map="auto", torch_dtype=torch.bfloat16)
     model.eval()
     return model, tok
 
@@ -158,6 +158,8 @@ def main():
     ap.add_argument("--output", required=True)
     ap.add_argument("--compliance-only", action="store_true",
                     help="Skip the slow harm-Likert generation; judge JBB compliance only.")
+    ap.add_argument("--model", default=MODEL_ID,
+                    help="Judge model id (default Llama-3.1-70B; e.g. Qwen/Qwen2.5-72B-Instruct).")
     args = ap.parse_args()
 
     rows = [json.loads(l) for l in open(args.input)]
@@ -176,8 +178,8 @@ def main():
     todo = [r for r in rows if (r["prompt_id"], r.get("method"), r.get("alpha")) not in done_keys]
     print(f"To judge: {len(todo)}", flush=True)
 
-    print("Loading model...", flush=True)
-    model, tok = load_model()
+    print(f"Loading judge model {args.model}...", flush=True)
+    model, tok = load_model(args.model)
     print("Model ready", flush=True)
 
     t0 = time.time()
