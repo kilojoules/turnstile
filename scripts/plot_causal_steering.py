@@ -379,7 +379,47 @@ def fig_harm_matrix_dualjudge():
              "So 'harm is not add-steerable' holds regardless of which judge defines the direction or scores the outcome.")
     fig.tight_layout(); fig.savefig(f"{OUT}/fig8_harm_matrix_dualjudge.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
+def fig_harm_vs_compliance():
+    """On headroom-rich harmful prompts: does the harm direction open the compliance gate? (No.)"""
+    rows = [r for r in load("experiments/steer_compare_v1/judged_llama.jsonl") if r["set"] == "harmful"]
+    by = defaultdict(list)
+    for r in rows: by[(r["direction"], r["alpha"])].append(r)
+    A = sorted({a for (_, a) in by})
+    cols = {"refusal": CRIM, "harm": "#7b3fa0", "random": GREY}
+    labs = {"refusal": "refusal dir (the gate)", "harm": "harm dir", "random": "random"}
+    def val(d, a, f):
+        k = ("baseline", 0.0) if a == 0.0 else (d, a)
+        g = by[k]
+        return f(g) if g else np.nan
+    comp = lambda g: 100*sum(1 for r in g if r.get("judge_compliance_unsafe"))/len(g)
+    coh = lambda g: np.mean([r["coherence"]["token_unique_ratio"] for r in g])
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.7), sharex=True)
+    for d in ["refusal", "harm", "random"]:
+        a1.plot(A, [val(d, a, comp) for a in A], "-o", color=cols[d], lw=2.4, ms=6, label=labs[d])
+        a2.plot(A, [val(d, a, coh) for a in A], "-o", color=cols[d], lw=2.4, ms=6, label=labs[d])
+    a1.set_ylabel("complies / attack success (%)  ·  70B judge"); a1.set_ylim(-4, 100)
+    a1.set_xlabel("steering strength  α   (−α = subtract direction)"); a1.grid(alpha=0.25)
+    a1.axvline(0, color="k", lw=0.6, ls=":"); a1.legend(frameon=False, fontsize=8.5, loc="upper center")
+    a1.set_title("Harm-dir 'compliance' appears only at α=+0.75/1.5…", fontsize=10)
+    a2.axhspan(0.0, 0.6, color="#f2d0d0", alpha=0.5, zorder=0)
+    a2.text(0.02, 0.30, "degraded /\ngibberish", fontsize=8, color=CRIM)
+    a2.set_ylabel("coherence  (unique-token ratio)"); a2.set_ylim(0, 1.0)
+    a2.set_xlabel("steering strength  α"); a2.grid(alpha=0.25); a2.axvline(0, color="k", lw=0.6, ls=":")
+    a2.set_title("…exactly where its output has collapsed to gibberish", fontsize=10)
+    fig.suptitle("Does the harm direction steer compliance? No — its only 'compliance' is a degraded-output artifact, not a real bypass",
+                 fontsize=11.5, y=1.01)
+    cap(fig, "Steering three directions on 30 JailbreakBench harmful prompts (baseline 0% compliance — full headroom). "
+             "LEFT: the harm direction shows 0% compliance at every coherence-preserving magnitude (e.g. α=−0.75, where "
+             "its output is clean at 0.94) and only reaches ~30% at α=+0.75. RIGHT: but at α=+0.75 its coherence has "
+             "collapsed to 0.32 (α=+1.5 → 0.09, pure gibberish) — so that 'compliance' is the known degradation "
+             "false-positive (the 70B JBB judge miscounts broken non-refusals as unsafe), the same artifact the random "
+             "direction produces on its degraded side (33% at α=−1.5, coherence 0.45). The refusal direction, by "
+             "contrast, opens compliance at lower magnitude and is the Arditi-confirmed causal gate. So the harm "
+             "direction steers NEITHER harm NOR compliance — it only breaks the model.")
+    fig.tight_layout(); fig.savefig(f"{OUT}/fig9_harm_vs_compliance.png", dpi=140, bbox_inches="tight"); plt.close(fig)
+
 if __name__ == "__main__":
+    fig_harm_vs_compliance(); print("fig9 harm_vs_compliance")
     fig_harm_matrix_dualjudge(); print("fig8 harm_matrix_dualjudge")
     fig_compliance_and_harm(); print("fig7 compliance_and_harm")
     fig_harm_dose(); print("fig5 harm_doseresponse")
