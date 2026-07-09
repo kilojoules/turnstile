@@ -429,7 +429,7 @@ def fig_s1_scoreboard():
         ("Language / verbosity\n(output FORM)", [
             (GRN, "✓  French\n0→98%\nverbose 22→89"), (AMB, "~  weak\nFrench 100→90"), (GRN, "✓  (add\ndirection)")]),
         ("Harm uplift\n(CAPABILITY)", [
-            (RED, "✗  +0.1\n≈ random"), (RED, "✗  Δ≈0\n≈ random"), (GREY_L := "#e4e4e4", "readout only\nAUC 0.88")]),
+            (RED, "✗  +0.1\n≈ random"), (RED, "✗  Δ≈0\n≈ random"), (GREY_L := "#e4e4e4", "separable ≠\nsteerable")]),
     ]
     heads = ["", "ADD  (inject)", "ABLATE  (remove)", "causal?"]
     fig, ax = plt.subplots(figsize=(11, 5.8)); ax.set_xlim(0, 4); ax.set_ylim(-0.55, 4.6); ax.axis("off")
@@ -445,9 +445,10 @@ def fig_s1_scoreboard():
         for j, (col, txt) in enumerate(cells):
             ax.add_patch(Rectangle((x0[j+1]+0.02, y), cw[j+1]-0.04, H, facecolor=col, edgecolor="white", lw=2))
             ax.text(x0[j+1]+cw[j+1]/2, y+H/2, txt, ha="center", va="center", fontsize=8.6)
-    ax.text(2, -0.3, "A steering vector can flip a behavioral GATE and can inject output FORM — but it cannot conjure a "
-            "CAPABILITY the model lacks.\nThat is why ASR (a gate flip) overstates harm (a capability): the gate is trivially "
-            "steerable, the capability is not.", ha="center", fontsize=8.8, style="italic", color="#333")
+    ax.text(2, -0.3, "A steering vector can flip a behavioral GATE and inject output FORM — but not conjure a CAPABILITY the model lacks. "
+            "'Separable ≠ steerable':\nat the OUTPUT locus, harmful vs benign responses are trivially separable (~0.94 harm, ~0.92 output-compliance) yet the separating "
+            "direction injects\nnothing. (Pre-response readability — Fig 5, input locus — is the mid-0.7s claim, NOT the 0.94.) ASR overstates harm: the gate flips, the capability can't.",
+            ha="center", fontsize=7.6, style="italic", color="#333")
     fig.savefig(f"{OUT}/figS1_scoreboard.png", dpi=140, bbox_inches="tight"); plt.close(fig)
 
 def fig_s2_asr_neq_harm():

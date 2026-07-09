@@ -16,5 +16,30 @@
     "random_4",
     "random_5"
   ],
-  "HS_index": 17
+  "HS_index": 17,
+  "fit_locus": {
+    "refusal_dm": "input",
+    "comp_probe": "input",
+    "comp_dm_out": "output",
+    "comp_probe_out": "output",
+    "harm_dm_llama": "output",
+    "harm_dm_qwen": "output",
+    "harm_probe_llama": "output",
+    "harm_probe_qwen": "output",
+    "length_dm": "output",
+    "harm_dm_resid": "output",
+    "comp_dm_out_resid": "output",
+    "random_1": "n/a",
+    "random_2": "n/a",
+    "random_3": "n/a",
+    "random_4": "n/a",
+    "random_5": "n/a"
+  },
+  "phase0_auc": {
+    "harm_output_llama": 0.9424864578162783,
+    "harm_output_qwen": 0.9385921131007466,
+    "compliance_input": 0.8127114025528085,
+    "compliance_output": 0.9243699560912653,
+    "NOTE": "harm probe is OUTPUT locus (mean-pooled response) = paper's ~95% aside; pre-response (Fig-5) harm is mid-0.7s and is the readability claim. Do not substitute."
+  }
 }

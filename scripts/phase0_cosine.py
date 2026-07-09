@@ -50,12 +50,14 @@ if os.path.exists(f"{D}/reps.npz"):
             c = LogisticRegression(C=1.0, class_weight="balanced", max_iter=2000).fit(Xm[tr], yb[tr])
             aucs.append(roc_auc_score(yb[te], c.decision_function(Xm[te])))
         return np.mean(aucs), np.std(aucs)
-    print("\n===== PROBE AUC (GroupKFold by conversation) =====")
-    for nm, X, y, gg in [("harm (Llama)", z["Xh"], z["rl"], z["gh"]),
-                          ("harm (Qwen)", z["Xh"], z["rq"], z["gh"]),
-                          ("compliance (input)", z["Xci"], z["yc"], z["gc"]),
-                          ("compliance (output)", z["Xco"], z["yc"], z["gc"])]:
-        a, s = cv_auc(X, y, gg); print(f"  {nm:<22} AUC = {a:.3f} ± {s:.3f}")
+    print("\n===== PROBE AUC (GroupKFold, out-of-fold) — LABEL THE LOCUS =====")
+    print("  WARNING: harm reps here are OUTPUT locus (mean-pooled response) = separability,")
+    print("  NOT pre-response readability. Pre-response harm (Fig 5, input locus) is mid-0.7s.")
+    for nm, X, y, gg in [("harm  · OUTPUT locus · Llama", z["Xh"], z["rl"], z["gh"]),
+                          ("harm  · OUTPUT locus · Qwen", z["Xh"], z["rq"], z["gh"]),
+                          ("compliance · INPUT locus (Fig-5)", z["Xci"], z["yc"], z["gc"]),
+                          ("compliance · OUTPUT locus", z["Xco"], z["yc"], z["gc"])]:
+        a, s = cv_auc(X, y, gg); print(f"  {nm:<34} AUC = {a:.3f} ± {s:.3f}")
 
 # ---- heatmap
 M = np.array([[cos(a, b) for b in order] for a in order])

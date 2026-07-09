@@ -26,9 +26,15 @@ input (the refusal gate is the only real lever); directions read off the OUTPUT 
 OR complied-vs-refused content — describe the consequence and don't causally control it.
 
 Consequence for the paper: do NOT claim "harm is uniquely unsteerable vs compliance." The
-precise, defensible claim is: harm is a maximally-readable (AUC 0.94) OUTPUT-content direction,
-and output-content directions in general (incl. compliance) don't steer; only the input refusal
-gate does. ASR still overstates harm because ASR = the input gate (trivially flippable) while
-harm = output capability (not injectable). See figP4. Caveat: comp_dm_out was fit on multi-turn
+precise, defensible claim is SEPARABLE-YET-NOT-INJECTABLE: at the OUTPUT locus we steer at,
+harmful vs benign responses are trivially separable (~0.94 harm, ~0.92 output-compliance — this
+is OUTPUT-locus separability, the paper's "~95% at last response token" aside, NOT the
+pre-response mid-0.7s readability of Fig 5), yet adding the separating direction injects nothing.
+Output-content directions in general (incl. compliance) don't steer; only the input refusal gate
+does. Note also: the below-random output-compliance numbers (7% vs random 27%) and the ~27%
+"random compliance" are the degradation/false-positive band — nothing at the output locus is a
+clean lever — NOT negative steering. ASR still overstates harm because ASR = the input gate
+(trivially flippable) while harm = output capability (not injectable). See figP4. Caveat:
+comp_dm_out was fit on multi-turn
 replay turns and steered on single-turn prompts (a distribution shift), which may further weaken
 it — but the qualitative locus conclusion matches output-locus harm exactly.
