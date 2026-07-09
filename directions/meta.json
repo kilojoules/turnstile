@@ -1,0 +1,20 @@
+{
+  "REF_NORM": 7.562554836273193,
+  "dirs": [
+    "refusal_dm",
+    "comp_probe",
+    "comp_dm_out",
+    "comp_probe_out",
+    "harm_dm_llama",
+    "harm_probe_llama",
+    "harm_dm_qwen",
+    "harm_probe_qwen",
+    "length_dm",
+    "random_1",
+    "random_2",
+    "random_3",
+    "random_4",
+    "random_5"
+  ],
+  "HS_index": 17
+}

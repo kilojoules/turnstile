@@ -38,3 +38,4 @@ experiments/suite_log.txt
 run_base_adversary.sh
 run_vllm_4090.sh
 .devcatrc
+directions/reps.npz
