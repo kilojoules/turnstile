@@ -1,0 +1,1 @@
+{"wins_only": {"INPUT (pre-response, Fig-5)": {"llama": 0.8564678159659478, "qwen": 0.8331313662079994}, "OUTPUT (steering locus)": {"llama": 0.8865530434675305, "qwen": 0.8917582908837268}}, "n_wins": 289}
