@@ -18,8 +18,19 @@ def kappa(pairs):
 
 cp=[(bool(r['unsafe']),bool(Q[jk(r)]['qwen_unsafe'])) for r in J if jk(r) in Q]
 po,k,pa,pb=kappa(cp)
-print(f"COMPLIANCE  Llama-70B vs Qwen-72B (JBB, same prompt): agree={100*po:.1f}%  κ={k:.3f}  "
-      f"Llama-complied={100*pa:.1f}%  Qwen-complied={100*pb:.1f}%  n={len(cp)}")
+print(f"COMPLIANCE conv-level (any-turn agg; ARTIFACT-PRONE): agree={100*po:.1f}%  κ={k:.3f}  "
+      f"Llama={100*pa:.1f}%  Qwen={100*pb:.1f}%  n={len(cp)}")
+
+# CLEAN turn-level compliance: per-turn Llama JBB (per_turn_judge, original arm) vs Qwen per-turn
+Lpt={}
+for r in map(json.loads, open(f"{ROOT}/experiments/per_turn_judge_v2_full/results.jsonl")):
+    if r.get('arm')=='original': Lpt[(r['source'],r['turn'])]=bool(r['verdict']['unsafe'])
+Qpt={f"{r['source']}/r{r['round']}/i{r['idx']}":r['per_turn_unsafe']
+     for r in map(json.loads, open(f"{ROOT}/experiments/steering_v3/layer_sweep/qwen_per_turn_compliance.jsonl"))}
+tp=[(lu,bool(Qpt[c][t])) for (c,t),lu in Lpt.items() if c in Qpt and t<len(Qpt[c])]
+po,k,pa,pb=kappa(tp)
+print(f"COMPLIANCE TURN-LEVEL (clean, no aggregation):        agree={100*po:.1f}%  κ={k:.3f}  "
+      f"Llama={100*pa:.1f}%  Qwen={100*pb:.1f}%  n={len(tp)} turns/{len(set(c for c,_ in Lpt))} convs")
 hp=[(r['rating']>=4,r['qwen_rating']>=4) for r in J if isinstance(r.get('rating'),int) and isinstance(r.get('qwen_rating'),int)]
 po,k,pa,pb=kappa(hp)
 print(f"HARM≥4      Llama vs Qwen Stage-B:                     agree={100*po:.1f}%  κ={k:.3f}  "
