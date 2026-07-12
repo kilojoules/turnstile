@@ -52,37 +52,66 @@ def main():
             wins_le_t = sum(1 for x in toks if x is not None and x <= t)
             cum[c].append(100 * wins_le_t / n)
 
-    fig, ax = plt.subplots(figsize=(19.55, 5.0))
-    cmap = plt.get_cmap("tab10")
-    for i, c in enumerate(cats_sorted):
-        ax.plot(turns, cum[c], marker="o", markersize=5, linewidth=1.7,
-                color=cmap(i % 10), label=f"{c} (n={len(by_cat[c])})")
-
     # Overall mean across all convs
     all_toks = [t for toks in by_cat.values() for t in toks]
     n_total = len(all_toks)
     overall = [100 * sum(1 for x in all_toks if x is not None and x <= t) / n_total
                for t in turns]
-    ax.plot(turns, overall, marker="s", markersize=6, linewidth=2.2,
-            color="black", linestyle="--", label=f"pooled (n={n_total:,})")
 
-    ax.set_xlabel("turn $t$ (cumulative through this turn)")
-    ax.set_ylabel("cumulative ASR (%): fraction with first breach $\\leq t$")
-    ax.set_title("Cumulative ASR vs turn, by JailbreakBench category (11-run probe pool)",
-                 fontsize=11)
-    ax.set_xticks(turns)
-    ax.set_xticklabels([f"T{t}" for t in turns])
-    ax.grid(alpha=0.25, linewidth=0.4)
-    ax.set_xlim(-0.15, NUM_TURNS - 0.85)
-    ax.set_ylim(0, None)
+    # ---- professional styling ----
+    plt.rcParams.update({
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
+        "axes.titlesize": 13, "axes.labelsize": 11.5,
+        "xtick.labelsize": 10.5, "ytick.labelsize": 10.5,
+        "axes.spines.top": False, "axes.spines.right": False,
+        "axes.edgecolor": "#4d4d4d", "axes.linewidth": 0.9,
+        "figure.facecolor": "white", "axes.facecolor": "white",
+    })
+    # muted, distinct, publication-friendly palette (seaborn-deep style), ordered by rank
+    PALETTE = ["#3b6ea5", "#e07b39", "#4f9d69", "#c0455a", "#7d6bb0",
+               "#8f6f57", "#cf7fb3", "#c9a441", "#4bacc6", "#7f7f7f", "#5a4a99"]
+    GRID = "#e6e6e6"
 
-    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5),
-              fontsize=8.5, frameon=False, title="category", title_fontsize=9)
+    fig, ax = plt.subplots(figsize=(19.0, 4.75))
+    ax.set_axisbelow(True)
+    ax.yaxis.grid(True, color=GRID, linewidth=0.9)
+    ax.xaxis.grid(False)
+
+    handles = []
+    for i, c in enumerate(cats_sorted):
+        (h,) = ax.plot(turns, cum[c], "-o", color=PALETTE[i % len(PALETTE)],
+                       lw=2.0, ms=5, mec="white", mew=0.7, solid_capstyle="round",
+                       label=f"{c}   {cum[c][-1]:.0f}%")
+        handles.append(h)
+    (hp,) = ax.plot(turns, overall, "--s", color="#1a1a1a", lw=2.8, ms=6.5,
+                    mec="white", mew=0.8, zorder=10, label=f"pooled   {overall[-1]:.0f}%")
+
+    ax.set_xlabel("conversation turn", labelpad=8)
+    ax.set_ylabel("cumulative attack success (%)", labelpad=8)
+    ax.set_xticks(turns); ax.set_xticklabels([f"T{t}" for t in turns])
+    ax.set_xlim(-0.12, NUM_TURNS - 0.9)
+    ax.set_ylim(0, max(cum[cats_sorted[0]]) * 1.08)
+    ax.tick_params(length=0)
+    ax.margins(x=0.01)
+
+    # editorial title + subtitle (left-aligned)
+    ax.set_title("Attack success accrues across turns, by JailbreakBench category",
+                 fontweight="semibold", loc="left", pad=20)
+    ax.text(0.0, 1.045, "fraction of conversations first breached by turn $t$  ·  "
+            "11-run self-play pool  ·  n = 9,400 conversations",
+            transform=ax.transAxes, fontsize=10, color="#6b6b6b", ha="left")
+
+    leg = ax.legend([hp] + handles, [hp.get_label()] + [h.get_label() for h in handles],
+                    loc="center left", bbox_to_anchor=(1.015, 0.5), fontsize=9.5,
+                    frameon=False, handlelength=1.6, labelspacing=0.6,
+                    title="category  ·  final ASR", title_fontsize=10, alignment="left")
+    leg.get_title().set_fontweight("semibold")
 
     fig.tight_layout()
     for ext in ("pdf", "png"):
         out = f"{FIG_DIR}/cum_asr_by_category.{ext}"
-        fig.savefig(out, bbox_inches="tight", dpi=150 if ext == "png" else None)
+        fig.savefig(out, bbox_inches="tight", dpi=200 if ext == "png" else None)
         print(f"wrote {out}")
     plt.close(fig)
 
