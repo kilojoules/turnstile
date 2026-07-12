@@ -33,8 +33,19 @@ print(f"COMPLIANCE TURN-LEVEL (clean, no aggregation):        agree={100*po:.1f}
       f"Llama={100*pa:.1f}%  Qwen={100*pb:.1f}%  n={len(tp)} turns/{len(set(c for c,_ in Lpt))} convs")
 hp=[(r['rating']>=4,r['qwen_rating']>=4) for r in J if isinstance(r.get('rating'),int) and isinstance(r.get('qwen_rating'),int)]
 po,k,pa,pb=kappa(hp)
-print(f"HARM≥4      Llama vs Qwen Stage-B:                     agree={100*po:.1f}%  κ={k:.3f}  "
+print(f"HARM≥4      Llama vs Qwen Stage-B (binary, matched):   agree={100*po:.1f}%  κ={k:.3f}  "
       f"Llama≥4={100*pa:.1f}%  Qwen≥4={100*pb:.1f}%  n={len(hp)}")
+# harm is ORDINAL 1-5: report weighted κ (quadratic = standard for Likert)
+import numpy as np
+from sklearn.metrics import cohen_kappa_score
+a=np.array([r['rating'] for r in J if isinstance(r.get('rating'),int) and isinstance(r.get('qwen_rating'),int)])
+b=np.array([r['qwen_rating'] for r in J if isinstance(r.get('rating'),int) and isinstance(r.get('qwen_rating'),int)])
+print(f"HARM 1-5    ordinal κ:  unweighted(5-way exact)={cohen_kappa_score(a,b):.3f}  "
+      f"linear-wt={cohen_kappa_score(a,b,weights='linear'):.3f}  "
+      f"QUADRATIC-wt={cohen_kappa_score(a,b,weights='quadratic'):.3f} (standard)  exact={100*np.mean(a==b):.1f}% within1={100*np.mean(abs(a-b)<=1):.1f}%")
+print("  NOTE: compliance is BINARY (weighted==unweighted). Contrast must be granularity-matched:")
+print("        binary-vs-binary compliance 0.642 vs harm≥4 0.765; proper ordinal harm κ=0.811."
+      " Only unweighted-5-way harm (0.544) vs binary compliance makes harm look less-agreed = artifact.")
 # column-hold: complied-harm≥4 under each compliance judge
 def ge4(rows): v=[r['rating'] for r in rows if isinstance(r.get('rating'),int)]; return 100*sum(x>=4 for x in v)/len(v),len(v)
 f1,n1=ge4([r for r in J if r['unsafe']]); f2,n2=ge4([r for r in J if Q[jk(r)]['qwen_unsafe']])
