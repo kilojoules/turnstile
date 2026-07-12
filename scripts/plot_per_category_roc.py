@@ -74,7 +74,72 @@ def oof_predictions(X, y, groups, n_splits=5, seed=42):
     return oof
 
 
+def render(rocs, pooled, layer):
+    """Professional, large-text render from ROC dicts (per_category + pooled)."""
+    plt.rcParams.update({
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
+        "axes.titlesize": 17, "axes.labelsize": 16,
+        "xtick.labelsize": 14, "ytick.labelsize": 14,
+        "axes.spines.top": False, "axes.spines.right": False,
+        "axes.edgecolor": "#4d4d4d", "axes.linewidth": 1.1,
+        "figure.facecolor": "white", "axes.facecolor": "white",
+    })
+    PALETTE = ["#3b6ea5", "#e07b39", "#4f9d69", "#c0455a", "#7d6bb0",
+               "#8f6f57", "#cf7fb3", "#c9a441", "#4bacc6", "#7f7f7f"]
+    cats_sorted = sorted(rocs.keys(), key=lambda c: -rocs[c]["auc"])
+
+    fig, ax = plt.subplots(figsize=(9.2, 7.2))
+    ax.set_axisbelow(True)
+    ax.grid(True, color="#e9e9e9", linewidth=1.0)
+    # chance diagonal
+    ax.plot([0, 1], [0, 1], color="#b0b0b0", linestyle=(0, (2, 3)), linewidth=1.3)
+    ax.text(0.62, 0.57, "chance", color="#9a9a9a", fontsize=13, rotation=39,
+            rotation_mode="anchor", ha="left", va="center")
+
+    handles = []
+    for i, c in enumerate(cats_sorted):
+        r = rocs[c]
+        (h,) = ax.plot(r["fpr"], r["tpr"], lw=2.2, color=PALETTE[i % len(PALETTE)],
+                       solid_capstyle="round", label=f"{c}   {r['auc']:.3f}")
+        handles.append(h)
+    (hp,) = ax.plot(pooled["fpr"], pooled["tpr"], "--", lw=3.4, color="#1a1a1a",
+                    zorder=10, label=f"pooled   {pooled['auc']:.3f}")
+
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1.003); ax.set_aspect("equal")
+    ax.set_xlabel("false-positive rate", labelpad=9)
+    ax.set_ylabel("true-positive rate", labelpad=9)
+    ax.set_xticks([0, .25, .5, .75, 1]); ax.set_yticks([0, .25, .5, .75, 1])
+    ax.tick_params(length=0)
+
+    ax.text(0.0, 1.115, f"Compliance decodes uniformly across categories (L{layer})",
+            transform=ax.transAxes, fontsize=17, fontweight="semibold", ha="left")
+    ax.text(0.0, 1.045, "per-turn compliance probe  ·  out-of-fold, GroupKFold by "
+            "conversation  ·  9,400-conv pool",
+            transform=ax.transAxes, fontsize=12.5, color="#6b6b6b", ha="left")
+
+    leg = ax.legend([hp] + handles, [hp.get_label()] + [h.get_label() for h in handles],
+                    loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=13,
+                    frameon=False, handlelength=1.7, labelspacing=0.65,
+                    title="category  ·  AUC", title_fontsize=13.5, alignment="left")
+    leg.get_title().set_fontweight("semibold")
+
+    fig.tight_layout()
+    for ext in ("pdf", "png"):
+        out_p = f"{FIG}/per_category_roc_L{layer}.{ext}"
+        fig.savefig(out_p, bbox_inches="tight", dpi=200 if ext == "png" else None)
+        print(f"wrote {out_p}")
+    plt.close(fig)
+
+
 def main():
+    jf = f"{OUT}/per_category_roc_L{LAYER}.json"
+    if os.path.exists(jf):
+        print(f"Loading cached {jf} (skip recompute)", flush=True)
+        d = json.load(open(jf))
+        render(d["per_category"], d["pooled"], LAYER)
+        return
+
     print(f"Loading L{LAYER} ...", flush=True)
     X, y, cats, groups = load_layer_rows(LAYER)
     print(f"  rows: {len(y)}, positives: {int(y.sum())}, "
@@ -90,58 +155,20 @@ def main():
         keep = ~np.isnan(oof)
         fpr, tpr, _ = roc_curve(yc[keep], oof[keep])
         auc = roc_auc_score(yc[keep], oof[keep])
-        rocs[cat] = {"fpr": fpr.tolist(), "tpr": tpr.tolist(),
-                     "auc": float(auc),
+        rocs[cat] = {"fpr": fpr.tolist(), "tpr": tpr.tolist(), "auc": float(auc),
                      "n": int(mask.sum()), "n_pos": int(yc.sum())}
-        print(f"  {cat:<28}  AUC={auc:.4f}  n={int(mask.sum())}, "
-              f"pos={int(yc.sum())}", flush=True)
+        print(f"  {cat:<28}  AUC={auc:.4f}", flush=True)
 
-    # also pooled
     oof_all = oof_predictions(X, y, groups)
     keep = ~np.isnan(oof_all)
     fpr_all, tpr_all, _ = roc_curve(y[keep], oof_all[keep])
     auc_all = roc_auc_score(y[keep], oof_all[keep])
-    print(f"\n  {'POOLED':<28}  AUC={auc_all:.4f}  n={len(y)}, "
-          f"pos={int(y.sum())}", flush=True)
-
-    out = {"layer": LAYER, "per_category": rocs,
-           "pooled": {"fpr": fpr_all.tolist(), "tpr": tpr_all.tolist(),
-                      "auc": float(auc_all),
-                      "n": len(y), "n_pos": int(y.sum())}}
-    with open(f"{OUT}/per_category_roc_L{LAYER}.json", "w") as f:
-        json.dump(out, f)
-    print(f"\nWrote {OUT}/per_category_roc_L{LAYER}.json")
-
-    # ----- plot -----
-    cats_sorted = sorted(rocs.keys(), key=lambda c: -rocs[c]["auc"])
-    cmap = plt.get_cmap("tab10")
-    fig, ax = plt.subplots(figsize=(8.0, 6.4))
-    for i, c in enumerate(cats_sorted):
-        r = rocs[c]
-        ax.plot(r["fpr"], r["tpr"], linewidth=1.6, color=cmap(i % 10),
-                label=f"{c}: AUC = {r['auc']:.3f} (n_pos={r['n_pos']})")
-    # pooled
-    ax.plot(fpr_all, tpr_all, linewidth=2.2, color="black", linestyle="--",
-            label=f"pooled: AUC = {auc_all:.3f} (n_pos={int(y.sum())})")
-    ax.plot([0, 1], [0, 1], color="gray", linestyle=":", linewidth=0.8,
-            alpha=0.6)
-    ax.set_xlim(0, 1); ax.set_ylim(0, 1.005)
-    ax.set_xlabel("false positive rate")
-    ax.set_ylabel("true positive rate")
-    ax.set_title(f"Per-category ROC at L{LAYER}, per-turn label, "
-                 f"GroupKFold by conversation\n"
-                 f"(9,400-conv corpus, OOB predictions; n_pos = breach turns per category)",
-                 fontsize=10.5)
-    ax.grid(alpha=0.25, linewidth=0.4)
-    ax.legend(loc="lower right", fontsize=8.5, frameon=True, framealpha=0.93)
-
-    fig.tight_layout()
-    for ext in ("pdf", "png"):
-        out_p = f"{FIG}/per_category_roc_L{LAYER}.{ext}"
-        fig.savefig(out_p, bbox_inches="tight",
-                    dpi=150 if ext == "png" else None)
-        print(f"wrote {out_p}")
-    plt.close(fig)
+    pooled = {"fpr": fpr_all.tolist(), "tpr": tpr_all.tolist(),
+              "auc": float(auc_all), "n": len(y), "n_pos": int(y.sum())}
+    with open(jf, "w") as f:
+        json.dump({"layer": LAYER, "per_category": rocs, "pooled": pooled}, f)
+    print(f"\nWrote {jf}")
+    render(rocs, pooled, LAYER)
 
 
 if __name__ == "__main__":
