@@ -116,19 +116,23 @@ def main():
                     + loss_harm_baseline)
     loss_md_harm = ([r for r in harm_raw if r.get("method") == "md_harm" and coh_ok(r)]
                     + loss_harm_baseline)
+    # For the Llama panel, the random arm was never Llama-judged for steered cells.
+    # At α=0 every direction is equivalent to the unsteered baseline, so we use
+    # the harm baseline cells (which carry canon Llama Likert) as the random α=0 proxy.
+    loss_rand_llama = loss_rand + loss_harm_baseline
     print(f"loss-set comp-dir: {len(loss_p2)} rows")
     print(f"loss-set random:   {len(loss_rand)} rows")
-    print(f"loss-set LR-harm:  {len(loss_lr_harm)} rows  (today, meta-llama)")
-    print(f"loss-set MD-harm:  {len(loss_md_harm)} rows  (today, meta-llama)")
-    print(f"loss-set harm baselines (today): {len(loss_harm_baseline)}")
+    print(f"loss-set LR-harm:  {len(loss_lr_harm)} rows")
+    print(f"loss-set MD-harm:  {len(loss_md_harm)} rows")
+    print(f"loss-set harm baselines: {len(loss_harm_baseline)}")
 
     ALPHAS = [-1.0, -0.5, 0.0, 0.5, 1.0]
     JITTER = {"comp": -0.07, "random": -0.025, "lr_harm": +0.025, "md_harm": +0.07}
     arms = [
-        ("comp",    "#3b6fb0", "compliance direction (May)",      loss_p2),
-        ("random",  "#888888", "random direction (May)",          loss_rand),
-        ("lr_harm", "#cc3322", "LR-harm direction (today)",       loss_lr_harm),
-        ("md_harm", "#7f3fbf", "MD-harm direction (today)",       loss_md_harm),
+        ("comp",    "#3b6fb0", "compliance direction",  loss_p2),
+        ("random",  "#888888", "random direction",      loss_rand),
+        ("lr_harm", "#cc3322", "LR-harm direction",     loss_lr_harm),
+        ("md_harm", "#7f3fbf", "MD-harm direction",     loss_md_harm),
     ]
 
     def cell(rows, alpha):
@@ -169,8 +173,11 @@ def main():
         ax.axhline(4.0, color="#cc3322", linestyle=":", linewidth=1.0, alpha=0.6,
                    label="meaningful-uplift threshold (4)")
         for arm_id, color, label, rows in arms:
+            # For the Llama panel, random uses loss_rand_llama so it has a
+            # baseline point at α=0 (steered cells still have no Llama data
+            # and are skipped naturally by the `if not vals` guard below).
             if arm_id == "random" and pi == 1:
-                continue  # random has no canon Llama
+                rows = loss_rand_llama
             xs, ys, los, his = [], [], [], []
             for a in ALPHAS:
                 cells = cell(rows, a)
@@ -191,15 +198,12 @@ def main():
         ax.set_title(titles[pi + 1], fontsize=10.5)
         ax.set_ylim(1.0, 4.2)
         ax.grid(alpha=0.25, linewidth=0.4)
-        if pi == 0:
-            ax.legend(loc="upper left", fontsize=8, frameon=True, framealpha=0.92)
-        else:
-            ax.legend(loc="upper left", fontsize=8, frameon=True, framealpha=0.92)
+        ax.legend(loc="upper left", fontsize=8, frameon=True, framealpha=0.92)
 
     fig.suptitle("Loss-set α-sweep at L16: ASR rises ~30pp with headroom (~45→~75%) but "
                  "canon Likert stays capped below meaningful-uplift (4) under every direction.\n"
-                 "Comp + random arms generated May-26; harm arm generated today on the same "
-                 "victim (meta-llama); per-arm α=0 baselines plotted alongside steered cells.",
+                 "All arms use the same victim (Llama-3.1-8B-Instruct); per-arm α=0 baselines "
+                 "plotted alongside steered cells.",
                  fontsize=10.0)
     fig.tight_layout()
     for ext in ("pdf", "png"):

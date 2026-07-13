@@ -39,3 +39,11 @@ run_base_adversary.sh
 run_vllm_4090.sh
 .devcatrc
 directions/reps.npz
+
+# --- Large derived artifacts (too big for GitHub; regenerable — see PAPER_DATA.md) ---
+experiments/pooled_hs/
+experiments/postresponse_alllayer/reps_*.npz
+experiments/clamp_obliterated_v2/replay_v2_full.pt
+experiments/*/adapter/
+experiments/intent_obliteration/**/data.jsonl
+*.safetensors

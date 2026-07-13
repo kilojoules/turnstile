@@ -1,0 +1,70 @@
+{
+  "layers": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    31
+  ],
+  "per_layer": {
+    "L0": {
+      "lr_comp_auc_qwen": 0.520957728334956,
+      "md_comp_auc_qwen": 0.5255521289055362,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L4": {
+      "lr_comp_auc_qwen": 0.6916015532389899,
+      "md_comp_auc_qwen": 0.5969107667959642,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L8": {
+      "lr_comp_auc_qwen": 0.7050274724313754,
+      "md_comp_auc_qwen": 0.6379625116016178,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L12": {
+      "lr_comp_auc_qwen": 0.7237969456889106,
+      "md_comp_auc_qwen": 0.6477831404851877,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L16": {
+      "lr_comp_auc_qwen": 0.7438808952641585,
+      "md_comp_auc_qwen": 0.6742653831284248,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L20": {
+      "lr_comp_auc_qwen": 0.7350482833509523,
+      "md_comp_auc_qwen": 0.6852770282974865,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L24": {
+      "lr_comp_auc_qwen": 0.7255969631048522,
+      "md_comp_auc_qwen": 0.6818598109971805,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L28": {
+      "lr_comp_auc_qwen": 0.7117323211111949,
+      "md_comp_auc_qwen": 0.6809013729584465,
+      "n_rows": 22415,
+      "n_pos": 7399
+    },
+    "L31": {
+      "lr_comp_auc_qwen": 0.6954843621710248,
+      "md_comp_auc_qwen": 0.6758460375592159,
+      "n_rows": 22415,
+      "n_pos": 7399
+    }
+  },
+  "label_source": "qwen_per_turn_compliance"
+}

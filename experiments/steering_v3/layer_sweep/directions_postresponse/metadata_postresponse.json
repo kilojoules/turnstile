@@ -1,0 +1,16 @@
+{
+  "harm_thresh": 4,
+  "layers": [
+    16
+  ],
+  "n_wins": 289,
+  "n_pos": 124,
+  "n_neg": 165,
+  "scores_path": "/root/turnstile/working/uplift/stage_b_scores.jsonl",
+  "per_layer": {
+    "L16": {
+      "lr_auc": 0.879020202020202,
+      "md_auc": 0.8283838383838384
+    }
+  }
+}

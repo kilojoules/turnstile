@@ -73,7 +73,7 @@ def main():
                "#8f6f57", "#cf7fb3", "#c9a441", "#4bacc6", "#7f7f7f", "#5a4a99"]
     GRID = "#e6e6e6"
 
-    fig, ax = plt.subplots(figsize=(19.0, 4.75))
+    fig, ax = plt.subplots(figsize=(10.0, 4.75))
     ax.set_axisbelow(True)
     ax.yaxis.grid(True, color=GRID, linewidth=0.9)
     ax.xaxis.grid(False)

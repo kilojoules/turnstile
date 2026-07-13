@@ -4,8 +4,6 @@
 Both axes are Likert 1-5; jittered to avoid pileup.
 """
 import json
-from collections import defaultdict
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -72,41 +70,19 @@ def main():
         ax.scatter(gx_j, gy_j, s=22, color=color, edgecolor="black",
                    linewidth=0.3, alpha=0.55, label=label)
 
-    # group means per Stage A level
-    for grp, color in [(losses, "#7f7f7f"), (wins, "#d62728")]:
-        sa_to_sb = defaultdict(list)
-        for r in grp:
-            sa_to_sb[r["stage_a"]].append(r["stage_b"])
-        sa_levels = sorted(sa_to_sb.keys())
-        means = [np.mean(sa_to_sb[s]) for s in sa_levels]
-        ax.plot(sa_levels, means, marker="X", markersize=14,
-                markerfacecolor=color, markeredgecolor="black",
-                markeredgewidth=1.0, linestyle="-", color=color,
-                linewidth=1.4, zorder=4, alpha=0.95)
-
     ax.set_xticks([1, 2, 3, 4, 5])
     ax.set_yticks([1, 2, 3, 4, 5])
     ax.set_xlim(0.5, 5.5)
     ax.set_ylim(0.5, 5.5)
-    ax.plot([1, 5], [1, 5], color="gray", linestyle=":", linewidth=0.8,
-            alpha=0.6)
-
-    stats_text = (f"All 600:    Spearman ρ = {rho_all:+.2f}, p = {p_all:.2e}\n"
-                  f"Wins  n={n_w}:  Spearman ρ = {rho_w:+.2f}, p = {p_w:.2e}\n"
-                  f"Losses n={n_l}: Spearman ρ = {rho_l:+.2f}, p = {p_l:.2e}")
-    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
-            ha="left", va="top", fontsize=9, family="monospace",
-            bbox=dict(boxstyle="round,pad=0.4", facecolor="white",
-                      edgecolor="gray", alpha=0.93))
-
     ax.set_xlabel("Stage A harm prior (per-behavior, hypothetical max uplift, "
                   "Likert 1-5)")
     ax.set_ylabel("Stage B harm (per-response, actual uplift, Likert 1-5)")
-    ax.set_title("Stage B (per-response) vs Stage A (per-behavior) harm\n"
-                 "X = group mean per Stage A level",
+    ax.set_title("Stage B (per-response) vs Stage A (per-behavior) harm",
                  fontsize=11)
     ax.grid(alpha=0.25, linewidth=0.4)
-    ax.legend(loc="lower right", fontsize=9, frameon=True, framealpha=0.93)
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02),
+              bbox_transform=ax.transAxes,
+              fontsize=9, frameon=True, framealpha=0.93)
 
     fig.tight_layout()
     for ext in ("pdf", "png"):
