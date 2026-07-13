@@ -1,0 +1,10 @@
+A 36048551 ssh2.vast.ai 18550 (existing)
+B 36087409 ssh5.vast.ai 17408 (replacement; original 36079459 preempted ~3.5h in)
+C 36198700 ssh3.vast.ai 38700 (replacement; original 36079462 destroyed at 99.9% with no data pulled)
+D 36137858 ssh3.vast.ai 17858 (replacement; original 36079467 destroyed after 2 host reboots; previous 36079459 preempted ~3.5h in)
+
+Shards:
+  A: probe=L16 steer=L16 records 0..99
+  B: probe=L16 steer=L16 records 100..199
+  C: probe=L31 steer=L31 records 0..99
+  D: probe=L31 steer=L31 records 100..199

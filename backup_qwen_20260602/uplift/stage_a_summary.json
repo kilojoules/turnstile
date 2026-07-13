@@ -1,0 +1,13 @@
+{
+  "n_behaviors": 96,
+  "per_behavior": {
+    "pearson_r": 0.029185497739031126,
+    "pearson_p": 0.7777345492983117,
+    "spearman_r": -0.017533509053410258,
+    "spearman_p": 0.865359941933852
+  },
+  "per_category": {
+    "pearson_r": 0.35873315698705666,
+    "pearson_p": 0.30869894779856466
+  }
+}

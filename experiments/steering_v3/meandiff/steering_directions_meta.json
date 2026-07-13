@@ -1,0 +1,23 @@
+{
+  "layer": 16,
+  "harm_thresh": 4,
+  "n_train_comp_rows": 39706,
+  "n_train_comp_pos": 1744,
+  "n_train_harm_rows": 289,
+  "n_train_harm_pos": 124,
+  "raw_norm_w_comp": 55.12651443481445,
+  "raw_norm_w_harm": 5.828160762786865,
+  "cos_v_comp_v_harm": 0.007803505752235651,
+  "h_L16_norm_median": 10.696772575378418,
+  "h_L16_norm_mean": 10.500084884471082,
+  "h_L16_norm_std": 1.2622760322475681,
+  "sign_convention": "AFTER 2026-05-24 UN-FLIP: v_comp_L16.pt is back to original LR sign (positive = 'predicts breach' axis, which empirically pushes TOWARD refusal under steering). Plot scripts negate alpha_c for display so that display +alpha_c = causal amplification of compliance.",
+  "v_comp_sign_flip_applied": false,
+  "v_harm_L24_norm": 3.8280465602874756,
+  "v_harm_L24_n_train": 289,
+  "v_harm_L24_n_pos": 124,
+  "direction_method": "mean-difference (Arditi-style)",
+  "note": "v_comp_L16 = mean(breach-turn HS) - mean(safe-turn HS), L2-normalized. Same for harm.",
+  "cos_meandiff_vs_LR_comp": 0.0884,
+  "cos_meandiff_vs_LR_harm": 0.8152
+}

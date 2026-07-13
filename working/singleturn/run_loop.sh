@@ -1,0 +1,101 @@
+#!/bin/bash
+# Single-turn DPO self-play on a vast instance.
+#   judge server  -> bootstrap (8B generates seed attacks, judge filters, train initial 3B LoRA)
+#   victim server -> 5-round DPO loop (--num-turns 1)
+# Expects /workspace/turnstile_pkg.tar.gz and $HF_TOKEN. Touches /workspace/DONE at the end.
+set -x
+exec > /workspace/run.log 2>&1
+echo "=== run_loop.sh start $(date -u) ==="
+
+PY3="$(command -v python3 || echo /usr/bin/python3)"
+ln -sf "$PY3" /usr/local/bin/python 2>/dev/null || true
+hash -r 2>/dev/null || true
+echo "python -> $(command -v python) ($("$PY3" --version 2>&1))"
+PIP="$(command -v pip3 || command -v pip)"
+
+VICTIM=meta-llama/Llama-3.1-8B-Instruct
+ATTACKER=meta-llama/Llama-3.2-3B-Instruct
+JUDGE=Qwen/Qwen2.5-32B-Instruct-AWQ
+JUDGE_FALLBACK=Qwen/Qwen2.5-14B-Instruct-AWQ
+EXP=singleturn_hardened_v1
+
+cd /workspace
+mkdir -p /workspace/turnstile_src && cd /workspace/turnstile_src
+tar xzf /workspace/turnstile_pkg.tar.gz
+export PYTHONPATH=/workspace/turnstile_src:$PYTHONPATH
+mkdir -p /workspace/turnstile
+
+"$PIP" install -q --no-cache-dir peft jailbreakbench openai 2>&1 | tail -3 || true
+python -c "from huggingface_hub import login; login(token='${HF_TOKEN}')" || echo "hf login fallback"
+echo "dummy" > /root/.together
+
+export TURNSTILE_JUDGE_BASE_URL=http://localhost:8002/v1
+export TURNSTILE_JUDGE_MODEL=local-judge
+
+echo "=== starting judge vLLM $(date -u) ==="
+nohup python -m vllm.entrypoints.openai.api_server \
+  --model "$JUDGE" --port 8002 --served-model-name local-judge \
+  --gpu-memory-utilization 0.30 --max-model-len 2048 --max-num-seqs 16 \
+  --quantization awq_marlin --enforce-eager \
+  --download-dir /workspace/hf_cache > /workspace/judge.log 2>&1 &
+JUDGE_PID=$!
+for i in $(seq 1 60); do
+  curl -fs http://localhost:8002/v1/models 2>/dev/null | grep -q local-judge && { echo "judge up"; break; }
+  if ! kill -0 $JUDGE_PID 2>/dev/null; then
+    echo "judge died; fallback $JUDGE_FALLBACK"
+    nohup python -m vllm.entrypoints.openai.api_server \
+      --model "$JUDGE_FALLBACK" --port 8002 --served-model-name local-judge \
+      --gpu-memory-utilization 0.30 --max-model-len 2048 --max-num-seqs 16 \
+      --quantization awq_marlin --enforce-eager \
+      --download-dir /workspace/hf_cache > /workspace/judge.log 2>&1 &
+    JUDGE_PID=$!
+  fi
+  sleep 30
+done
+curl -fs http://localhost:8002/v1/models 2>/dev/null | grep -q local-judge || { echo "JUDGE NEVER CAME UP"; touch /workspace/DONE; exit 1; }
+curl -s http://localhost:8002/v1/chat/completions -H 'Content-Type: application/json' \
+  -d '{"model":"local-judge","messages":[{"role":"user","content":"reply with: ok"}],"max_tokens":5,"temperature":0}' | head -c 200; echo
+
+rm -f /workspace/turnstile_src/data/train.jsonl /workspace/turnstile_src/data/all_seeds.jsonl  # force fresh single-turn seed gen
+echo "=== bootstrap $(date -u) ==="
+rm -rf adapters && mkdir -p adapters
+python -u -m turnstile.bootstrap \
+  --num-seeds 100 \
+  --num-turns 1 \
+  --adversary-model "$ATTACKER" \
+  --lora-iters 200 \
+  --seed 42 2>&1 | tee /workspace/bootstrap.log
+echo "=== bootstrap done $(date -u) ==="
+ls -la adapters/ || true
+mkdir -p experiments/$EXP/adapters experiments/$EXP/data
+cp -r adapters/* experiments/$EXP/adapters/ 2>/dev/null || true
+cp data/train.jsonl experiments/$EXP/data/train.jsonl 2>/dev/null || true
+
+echo "=== starting victim vLLM $(date -u) ==="
+nohup python -m vllm.entrypoints.openai.api_server \
+  --model "$VICTIM" --port 8000 \
+  --gpu-memory-utilization 0.35 --max-model-len 1536 --max-num-seqs 64 \
+  --dtype bfloat16 --enforce-eager \
+  --download-dir /workspace/hf_cache > /workspace/victim.log 2>&1 &
+for i in $(seq 1 60); do
+  curl -fs http://localhost:8000/health >/dev/null 2>&1 && { echo "victim up"; break; }
+  sleep 20
+done
+curl -fs http://localhost:8000/health >/dev/null 2>&1 || { echo "VICTIM NEVER CAME UP"; touch /workspace/DONE; exit 1; }
+
+echo "=== starting loop $(date -u) ==="
+python -u -m turnstile.vllm_loop \
+  --name "$EXP" \
+  --adversary-model "$ATTACKER" \
+  --num-turns 1 \
+  --rounds 5 \
+  --candidates 200 \
+  --together-key dummy \
+  --no-hidden-states \
+  --adv-gpu-util 0.18 \
+  --lora-iters 50 \
+  --seed 42 2>&1 | tee /workspace/loop.log
+
+echo "=== loop done $(date -u) ==="
+cp -r /workspace/turnstile_src/experiments/$EXP /workspace/exp_out 2>/dev/null || true
+touch /workspace/DONE

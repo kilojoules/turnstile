@@ -1,0 +1,25 @@
+{
+  "data": [
+    "experiments/steering_v3/layer_sweep/sweep_judged.jsonl"
+  ],
+  "score_key": "judge_harm_likert",
+  "n_per_slice": 80,
+  "n_sampled": 400,
+  "layer": 16,
+  "pca_dim": 256,
+  "n_edr": 4,
+  "ridge": 0.001,
+  "slice_counts": {
+    "1": 80,
+    "2": 80,
+    "3": 80,
+    "4": 80,
+    "5": 80
+  },
+  "eigenvalues": [
+    0.8957035170213498,
+    0.8636679040425785,
+    0.7212245939375802,
+    0.6674989434677124
+  ]
+}

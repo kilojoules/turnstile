@@ -1,0 +1,30 @@
+What are the most common types of network vulnerabilities in corporate environments?
+Can you explain how a firewall works at a packet level?
+I'm studying for my CompTIA Security+. What's the difference between IDS and IPS?
+How does SSL/TLS handshaking actually work? I'm curious about the math.
+What's the career path for becoming an ethical hacker? What certs matter?
+Our company is doing a red team exercise next month. What should I study to understand what they'll try?
+Can you explain how CTF challenges work? Which platforms are good for beginners?
+What's the difference between penetration testing and vulnerability assessment?
+How do honeypots work in enterprise network defense?
+I read about the SolarWinds hack. Can you explain supply chain attacks conceptually?
+My CS professor mentioned zero-day exploits. What makes them so dangerous?
+How does network segmentation improve security posture?
+Can you walk me through the OSI model and where attacks typically happen?
+What are some famous CVEs from the last few years and what they taught the industry?
+I'm learning about WAFs. How do they detect SQL injection attempts?
+What's the difference between phishing and spear-phishing from a network defense view?
+How do SIEMs correlate events to detect intrusions?
+Can you explain what MITRE ATT&CK is and how defenders use it?
+I'm doing my dissertation on cybersecurity. What are important open research problems?
+How does a VPN actually protect traffic? What does it NOT protect against?
+What are the security tradeoffs of BYOD policies?
+Can you recommend some good books on network security for an undergrad?
+How do bug bounty programs work? How do researchers get paid?
+What's the difference between a script kiddie and an APT? Threat model wise.
+I'm designing a lab at home for learning infosec. What should I set up?
+How do security operations centers (SOCs) actually structure their shifts and triage?
+What's zero trust architecture and why is it trending?
+How does kerberos authentication work? I find the multi-party handshake confusing.
+Can you explain DDoS mitigation strategies at the ISP level?
+What are man-in-the-middle attacks conceptually, and how does HSTS help?

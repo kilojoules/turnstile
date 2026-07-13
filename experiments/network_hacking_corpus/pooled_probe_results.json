@@ -1,0 +1,20 @@
+{
+  "n_malicious": 400,
+  "n_wins": 143,
+  "n_benign": 100,
+  "sources": {
+    "corpus": 100,
+    "focused": 200,
+    "pooled_authority_dpo": 5,
+    "pooled_control_hard_s456": 15,
+    "pooled_control_s42": 14,
+    "pooled_frozen_v1": 3,
+    "pooled_incrementalism_dpo": 11,
+    "pooled_reward_dpo": 9,
+    "pooled_stealth_hard_s456": 15,
+    "pooled_stealth_jbb_v1": 3,
+    "pooled_stealth_s42": 17,
+    "pooled_urgency_dpo": 6,
+    "pooled_urgency_v1": 2
+  }
+}

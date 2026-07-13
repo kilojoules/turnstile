@@ -1,0 +1,171 @@
+{
+  "turn": 0,
+  "layer_note": "L16 hidden states (per outcome_probe.py pipeline)",
+  "frozen_only": false,
+  "n_splits_requested": 5,
+  "seed": 42,
+  "sources": [
+    {
+      "name": "authority_dpo",
+      "hardened": false,
+      "n_rounds": 20,
+      "convs_contributed": 600
+    },
+    {
+      "name": "control_hard_s456",
+      "hardened": true,
+      "n_rounds": 15,
+      "convs_contributed": 1500
+    },
+    {
+      "name": "control_s42",
+      "hardened": false,
+      "n_rounds": 15,
+      "convs_contributed": 1500
+    },
+    {
+      "name": "frozen_v1",
+      "hardened": false,
+      "n_rounds": 10,
+      "convs_contributed": 300
+    },
+    {
+      "name": "incrementalism_dpo",
+      "hardened": false,
+      "n_rounds": 20,
+      "convs_contributed": 600
+    },
+    {
+      "name": "reward_dpo",
+      "hardened": false,
+      "n_rounds": 20,
+      "convs_contributed": 600
+    },
+    {
+      "name": "stealth_hard_s456",
+      "hardened": true,
+      "n_rounds": 15,
+      "convs_contributed": 1500
+    },
+    {
+      "name": "stealth_jbb_v1",
+      "hardened": false,
+      "n_rounds": 8,
+      "convs_contributed": 400
+    },
+    {
+      "name": "stealth_s42",
+      "hardened": false,
+      "n_rounds": 15,
+      "convs_contributed": 1500
+    },
+    {
+      "name": "urgency_dpo",
+      "hardened": false,
+      "n_rounds": 20,
+      "convs_contributed": 600
+    },
+    {
+      "name": "urgency_v1",
+      "hardened": false,
+      "n_rounds": 10,
+      "convs_contributed": 300
+    }
+  ],
+  "total_convs": 9400,
+  "total_wins": 2065,
+  "per_category": {
+    "Disinformation": {
+      "auc_mean": 0.6820350945350946,
+      "auc_std": 0.022461674270215084,
+      "n_folds_used": 5,
+      "n": 850,
+      "n_pos": 134,
+      "n_neg": 716,
+      "n_sources": 11
+    },
+    "Economic harm": {
+      "auc_mean": 0.6973780633997352,
+      "auc_std": 0.023762024890155244,
+      "n_folds_used": 5,
+      "n": 927,
+      "n_pos": 165,
+      "n_neg": 762,
+      "n_sources": 11
+    },
+    "Expert advice": {
+      "auc_mean": 0.6909922209352949,
+      "auc_std": 0.030358048594951267,
+      "n_folds_used": 5,
+      "n": 943,
+      "n_pos": 169,
+      "n_neg": 774,
+      "n_sources": 11
+    },
+    "Fraud/Deception": {
+      "auc_mean": 0.6265641499437465,
+      "auc_std": 0.0123345848472752,
+      "n_folds_used": 5,
+      "n": 988,
+      "n_pos": 339,
+      "n_neg": 649,
+      "n_sources": 11
+    },
+    "Government decision-making": {
+      "auc_mean": 0.6806296862900637,
+      "auc_std": 0.044943459677496946,
+      "n_folds_used": 5,
+      "n": 1004,
+      "n_pos": 267,
+      "n_neg": 737,
+      "n_sources": 11
+    },
+    "Harassment/Discrimination": {
+      "auc_mean": 0.68697911748603,
+      "auc_std": 0.03442676572360717,
+      "n_folds_used": 5,
+      "n": 909,
+      "n_pos": 136,
+      "n_neg": 773,
+      "n_sources": 11
+    },
+    "Malware/Hacking": {
+      "auc_mean": 0.6865484066629503,
+      "auc_std": 0.03170833677867093,
+      "n_folds_used": 5,
+      "n": 979,
+      "n_pos": 334,
+      "n_neg": 645,
+      "n_sources": 11
+    },
+    "Physical harm": {
+      "auc_mean": 0.6459393478402695,
+      "auc_std": 0.03685640060356691,
+      "n_folds_used": 5,
+      "n": 889,
+      "n_pos": 151,
+      "n_neg": 738,
+      "n_sources": 11
+    },
+    "Privacy": {
+      "auc_mean": 0.7513997501525566,
+      "auc_std": 0.022709093292132578,
+      "n_folds_used": 5,
+      "n": 912,
+      "n_pos": 259,
+      "n_neg": 653,
+      "n_sources": 11
+    },
+    "Sexual/Adult content": {
+      "auc_mean": 0.675002703544265,
+      "auc_std": 0.04430469769498035,
+      "n_folds_used": 5,
+      "n": 999,
+      "n_pos": 111,
+      "n_neg": 888,
+      "n_sources": 11
+    }
+  },
+  "macro_mean": 0.6823468540790005,
+  "macro_std": 0.030987565221757482
+}

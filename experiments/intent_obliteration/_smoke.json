@@ -1,0 +1,76 @@
+{
+  "dataset_summary": {
+    "n_conversations": 1500,
+    "n_wins": 412,
+    "n_with_turn_of_breach": 407,
+    "turn_of_breach_histogram": {
+      "0": 17,
+      "1": 191,
+      "2": 111,
+      "3": 49,
+      "4": 39
+    },
+    "sources": {
+      "control_s42": 1500
+    }
+  },
+  "n_benign_convs": 100,
+  "per_turn_auc": {
+    "0": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "n_adv": 1500,
+      "n_ben": 100
+    },
+    "1": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "n_adv": 1500,
+      "n_ben": 100
+    },
+    "2": {
+      "auc_mean": 0.9985000000000002,
+      "auc_std": 0.0004944132324730646,
+      "n_adv": 1500,
+      "n_ben": 100
+    },
+    "3": {
+      "auc_mean": 0.9984,
+      "auc_std": 0.0005637178175096363,
+      "n_adv": 1500,
+      "n_ben": 100
+    },
+    "4": {
+      "auc_mean": 0.9984999999999999,
+      "auc_std": 0.0005055250296034616,
+      "n_adv": 1500,
+      "n_ben": 100
+    }
+  },
+  "slice_auc": {
+    "all": {
+      "auc_mean": 0.9999986666666667,
+      "auc_std": 2.666666666684137e-06,
+      "n_adv": 7500,
+      "n_ben": 500
+    },
+    "winners_pre": {
+      "auc_mean": 0.9999722222222222,
+      "auc_std": 5.555555555556423e-05,
+      "n_adv": 716,
+      "n_ben": 500
+    },
+    "full_pre": {
+      "auc_mean": 0.9999983818770227,
+      "auc_std": 3.236245954685302e-06,
+      "n_adv": 6181,
+      "n_ben": 500
+    },
+    "full_strict_pre": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "n_adv": 5088,
+      "n_ben": 500
+    }
+  }
+}

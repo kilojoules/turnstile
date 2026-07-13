@@ -1,0 +1,293 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{natbib}
+\usepackage{multirow}
+\usepackage{caption}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, citecolor=blue!50!black, urlcolor=blue!50!black}
+\bibliographystyle{plainnat}
+
+% Placeholder cite that compiles even if bib entry is missing — replace with real \cite when the lit-review subagents return.
+\providecommand{\citetk}[1]{\textcolor{red}{[\textsc{cite: #1}]}}
+
+\title{\textbf{What residual-stream probes actually tell us\\ about multi-turn jailbreaks}}
+\author{Julian Quick}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We probe an 8B-parameter Llama-3.1-Instruct victim's residual stream during multi-turn jailbreak attacks staged by a 3B DPO-trained adversary, and report three findings that constrain how representations of safety should be interpreted.
+\textbf{(i)~Intent decoding is mostly bag-of-words}: a linear probe at layer~16 distinguishes adversarial from benign conversations at AUC~$0.97$, but a TF--IDF baseline on the same user messages reaches $0.88$ and message length alone reaches $0.72$.
+The residual stream's apparent ``intent'' representation contributes only $\sim$$9$~percentage points above text-only features---a control that, to our reading, is essentially absent from the LLM-safety probing literature \citep{arditi2024refusal,zhang2025jbshield,jiao2026siren,qian2024hsf,goldowsky2025deception} despite being standard in the broader probing methodology \citep{hewitt2019control}.
+\textbf{(ii)~Compliance prediction has a hard ceiling near $0.75$.} Across $9{,}400$ multi-turn conversations from $11$~training conditions, a logistic probe forecasting which attacks succeed plateaus at AUC~$0.72$--$0.75$.
+The ceiling is stable to: more training data ($1.5$k$\to$$9.4$k convs moves peak AUC by $<0.01$), seed and DPO round, a focused $450$-conversation single-goal study with dedicated DPO, sparse-autoencoder feature spaces with $256$--$16$k dimensions \citep{karvonen2025saes}, and pooling across turns.
+The closest precedent \citep{kirch2024features} trains compliance-forecast probes but does not characterize stability across these axes.
+\textbf{(iii)~The judge labels behind that ceiling track real-world uplift, but per-category compliance AUC does not anti-correlate with mean uplift.} A re-rating of $600$ victim responses by Qwen2.5-72B on an operational-uplift Likert (anchored against ``a basic Google search,'' inspired by but distinct from the StrongREJECT specificity rubric \citep{souly2024strongreject}) finds wins carry meaningfully more uplift than losses (means $2.66$ vs $1.33$, MWU $p=5\times10^{-32}$); the obvious hypothesis that the probe ceiling reflects the model's ability to discriminate ``stylized taboo'' from ``real uplift'' falsifies (Pearson $r=+0.34$, $n=10$ categories, opposite sign from prediction).
+The findings instantiate the Knowing/Acting dissociation of \citet{wu2026knowingwithoutacting} with concrete quantitative bounds and identify TF--IDF as a control that probing-for-safety work should adopt. Concurrent work \citep{bullwinkel2025multiturnrep} probes the same victim family during scripted multi-turn jailbreaks at the read-out layer ($L_{31}$), classifying response tokens for harmful character and observing that representations drift benign across turns; our DPO-trained learning attacker, $L_{16}$ compliance-forecast framing, and text-only baselines are complementary measurements of the same multi-turn phenomenon (Section~\ref{sec:related}).
+\end{abstract}
+
+
+\section{Setup}
+\label{sec:setup}
+
+\paragraph{Models.}
+\textit{Victim:} \texttt{meta-llama/Llama-3.1-8B-Instruct}, 32-layer, 4096-dim residual stream, frozen.
+\textit{Attacker:} \texttt{meta-llama/Llama-3.2-3B-Instruct}, fine-tuned with LoRA via DPO~\citep{rafailov2023dpo}.
+\textit{Judges:} Llama-Guard-3 (local) + \texttt{meta-llama/Llama-3.3-70B-Instruct-Turbo} (Together API).
+\textit{Stage-B uplift judge:} \texttt{Qwen/Qwen2.5-72B-Instruct-AWQ} (vLLM on a single 80~GB GPU).
+
+\paragraph{Goal corpus.}
+The 100 JailbreakBench (JBB) behaviors~\citep{chao2024jailbreakbench}, 10 per category across the standard ten-category JBB taxonomy.
+
+\paragraph{Multi-turn DPO self-play loop.}
+At each round, the LoRA-adapted attacker generates 100--200 candidate 5-turn conversations against the frozen victim (one per JBB goal). Each conversation is dual-judged for breach. Wins and losses form a preference dataset; we fit one DPO update per round with $\beta{=}0.1$, learning rate $5\mathrm{e}{-}5$, 50--200 LoRA iterations. Cross-category ASR rises from $\sim$$1$\% (round 0, untrained adapter) to $18$--$32$\% by round 2--5 and saturates. A single-goal focused variant (Network-hacking corpus, $450$ malicious + $100$ benign-curious conversations, dedicated DPO) saturates at $46$--$50$\% ASR.
+
+\paragraph{Dual-judge ``stack'' is effectively single-judge.}
+\label{para:judge_caveat}
+Across the 9{,}400-conversation pooled corpus, Llama-Guard returns \texttt{unsafe} on every conversation; the Together-70B judge fires on $21.8$\% of them; the AND-rule final label is therefore identical to the Together verdict alone (Cohen $\kappa = 0$ between the two judges). This matters for any analysis that recycles the existing labels as a ``two-judge contested case'' design.
+
+\paragraph{Pooled corpus for probing.}
+Eleven training runs contribute hidden states for $9{,}400$ conversations ($2{,}065$ wins, $22$\% ASR pooled): \texttt{control\_s\{42,123,456\}}, \texttt{stealth\_s\{42,123,456\}}, \texttt{control\_hard\_s456}, \texttt{stealth\_hard\_s456}, \texttt{authority\_dpo}, \texttt{incrementalism\_dpo}, \texttt{reward\_dpo}, \texttt{urgency\_dpo}, \texttt{frozen\_v1}, \texttt{urgency\_v1}, \texttt{stealth\_jbb\_v1}. Hidden states extracted at layers $\{0,4,8,12,16,20,24,28,31\}$, all five turns, residual stream after the assistant response.
+
+
+\section{Intent decoding is mostly bag-of-words}
+\label{sec:intent}
+
+\paragraph{Probe.}
+A logistic regression on the L16 residual stream at the assistant turn distinguishes adversarial (JBB self-play wins+losses) from benign (Alpaca instruction completions) conversations at \textbf{AUC $= 0.974 \pm 0.007$} (5-fold stratified CV, $n=9{,}300$ turn-level examples). The number is consistent with a now-standard pattern in probing-for-safety work that recognises adversarial intent from internal representations \citep{arditi2024refusal,zou2023repe,zhang2025jbshield,jiao2026siren,qian2024hsf,kulkarni2026latent,goldowsky2025deception}.
+
+\paragraph{Critical control: text-only baselines on the same messages.}
+We extract the at-pivot user message (the harmful ask) for each adversarial conversation and the matched user message for each benign conversation, then fit text-only baselines on the \emph{same} examples used by the residual-stream probe.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Feature space} & \textbf{AUC} & \textbf{Gap to L16} \\
+\midrule
+L16 residual stream (4096-d) & $0.974 \pm 0.007$ & --- \\
+TF--IDF on user message (1--2 grams, 5k vocab) & $0.880 \pm 0.012$ & $-0.094$ \\
+Message length (1-d) & $0.72$ & $-0.25$ \\
+\bottomrule
+\end{tabular}
+\caption{The residual stream beats TF--IDF by only $\sim 9$~pp on the same user messages, and message length alone gets to $0.72$. Most of what an L16 ``intent probe'' decodes is the surface form of the current user turn, not an abstract internal representation.}
+\label{tab:intent_baselines}
+\end{table}
+
+\paragraph{Why this control matters.}
+A 0.97 AUC headline number invites the reading ``the model knows it is being attacked.'' But two corpora that differ in vocabulary, length, sentence structure, and topic distribution will trivially separate at $\geq$$0.95$ in any high-dimensional feature space. Once we put a text-only floor on the comparison, the residual stream's marginal contribution shrinks from ``99.7th percentile of separability'' to ``$+9$~pp above bag-of-words.''
+
+We surveyed prior probing-for-safety work and found this control to be essentially absent: \citet{arditi2024refusal,zou2023repe,zhang2025jbshield,jiao2026siren,qian2024hsf,goldowsky2025deception,kulkarni2026latent} all report headline AUCs $\geq 0.95$ on harmful-vs-benign separation tasks but, to our reading, none include a text-only baseline on the same examples. The general probing community does have a methodological framework for this---\citet{hewitt2019control}'s control tasks insist on selectivity over baselines---but it has not transferred to the LLM-safety probing thread. We argue the TF--IDF control should be standard practice; without it, a near-perfect AUC headline is consistent with a probe that has learned no abstract representation at all. \citet{bullwinkel2025multiturnrep} explicitly raise this concern as an open limitation of their related multi-turn study (``it is uncertain whether the MLP captures the model's internal notion of harmfulness or is an artifact of the training distribution''); the TF--IDF baseline is a direct way to bound the answer, and on our intent task it bounds the artifact share at roughly~$91$\%. Concurrent work on adversarial fragility of safety probes \citep{bailey2024obfuscated} is consistent with this reading: probes that lean on shallow features should be obfuscatable, and they are.
+
+\paragraph{Within-conversation paired contrast.}
+A stronger control rewrites only the harmful ask at the breach turn into a benign counterfactual while holding the conversational prelude fixed (Section~\ref{sec:reproducibility}, ``intent\_obliteration\_paired''). Even here, the L16 probe achieves AUC~$0.97$ at the pivot turn---and the TF--IDF baseline on the rewritten messages reaches $0.88$. The paired contrast confirms the result is not an artifact of unrelated corpus structure, but does not rescue the abstract-intent reading.
+
+
+\section{Compliance prediction has a hard ceiling near 0.75}
+\label{sec:compliance}
+
+\paragraph{Probe.}
+A logistic regression on per-turn L16 residuals predicts whether the conversation is judged a successful jailbreak (binary: dual-judge \texttt{unsafe} on any turn). 5-fold stratified CV on the pooled 9{,}400-conversation corpus.
+
+\paragraph{Headline number.}
+Pooled macro AUC $\approx 0.68$; peak cell at $L{=}12, T{=}1$ reaches AUC $0.742$. Per-category macro mean (within-category 5-fold CV on pooled training set): $0.682$.
+
+\paragraph{The ceiling is stable.}
+\begin{itemize}[leftmargin=*]
+  \item \textit{Across DPO rounds}: peak per-round AUC varies $<0.02$ across 15 rounds.
+  \item \textit{Across seeds}: $\{42, 123, 456\}$ within $\pm 0.01$ of pooled.
+  \item \textit{Across data scale}: scaling from 1{,}500 to 9{,}400 training conversations moves peak AUC from $0.733$ to $0.742$.
+  \item \textit{Focused single-goal study}: Network-hacking corpus ($n=450$, dedicated DPO) gives intent AUC $1.00$ at turn~0 and compliance AUC $0.72$ at turn~0 ($0.69$ at turn~1).
+  \item \textit{Feature spaces}: SAE features (Goodfire/EleutherAI checkpoints, $256$--$16$k dims) do not exceed raw residuals; concat- and mean-pooling across turns do not beat single-turn peak.
+\end{itemize}
+
+\paragraph{Per-category structure depends on probe methodology.}
+Two natural per-category measurements give substantially different pictures of the per-category compliance signal:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Category} & \textbf{Within-cat AUC} & \textbf{Pooled AUC} & \textbf{$n$ wins (within-cat)} \\
+\midrule
+Disinformation               & 0.85 & 0.68 & 11 \\
+Privacy                      & 0.78 & 0.75 & 8  \\
+Government decision-making   & 0.70 & 0.68 & 6  \\
+Malware/Hacking              & 0.68 & 0.69 & 9  \\
+Fraud/Deception              & 0.46 & 0.63 & 9  \\
+Expert advice                & 0.45 & 0.69 & 19 \\
+Harassment/Discrimination    & 0.44 & 0.69 & 5  \\
+Economic harm                & 0.43 & 0.70 & 11 \\
+Physical harm                & ---  & 0.65 & ---  \\
+Sexual/Adult content         & ---  & 0.68 & ---  \\
+\midrule
+Macro mean                   & 0.60 & 0.68 & --- \\
+\bottomrule
+\end{tabular}
+\caption{Per-category compliance probe AUC under two methodologies. \emph{Within-category}: train and 5-fold-CV-test inside one category at a time, no cross-category transfer. Wide spread (0.43--0.85). Physical harm ($0/22$ wins) and Sexual/Adult ($1/40$ wins) drop out for lack of within-category positives. \emph{Pooled}: train one global probe on 9{,}400 conversations, evaluate per-category test folds. Compressed (0.63--0.75). The pooled probe inherits global compliance signal that masks per-category nulls. The within-category measurement is the cleaner test of category-specific representational content.}
+\label{tab:per_cat_methodology}
+\end{table}
+
+
+\section{Validation: are the labels real?}
+\label{sec:validation}
+
+\paragraph{Stage~B re-judging.}
+The 0.75 ceiling could reflect (a) a representational limit, (b) judge-label noise, or (c) the labels measuring something other than real-world harm. To distinguish, we re-rated $600$ victim responses (\textasciitilde{}300 wins + 300 losses, balanced 6-per-behavior across 96 JBB behaviors) using \texttt{Qwen2.5-72B-Instruct-AWQ} on a 5-point operational-uplift Likert anchored against ``compared to a basic Google search for this same topic.''
+
+\paragraph{Result.}
+\begin{itemize}[leftmargin=*]
+  \item Wins mean uplift $= 2.66$ ($n=289$); losses mean $= 1.33$ ($n=311$).
+  \item Mann--Whitney U $p = 5 \times 10^{-32}$ — wins overwhelmingly carry more operational uplift than losses.
+  \item $32$\% of wins rated $4$--$5$ (meaningful or severe uplift); $0$\% of losses are.
+  \item $36$\% of wins rated $1$ (no real uplift) — these are the ``compliance theater'' cases where the model engaged but didn't deliver. Lower bound on judge label noise.
+\end{itemize}
+
+\paragraph{Conclusion.}
+The Together-70B label is a noisy but meaningful proxy for operational uplift, not a keyword pattern-matcher. The $0.75$ probe ceiling is therefore predicting a substantively real quantity, not just a label artifact.
+
+
+\section{A tempting hypothesis that falsified}
+\label{sec:falsified}
+
+\paragraph{Hypothesis.}
+The 0.75 compliance ceiling could be explained by ``the model has been trained to refuse stylized taboos (Sexual/Adult, Harassment) but lacks the same internal discriminator on tasks with real operational uplift (Malware, Privacy, Govt).'' Prediction: per-category compliance AUC \emph{anti-correlates} with per-category mean operational uplift among wins.
+
+\paragraph{Test.}
+We compute per-category mean Stage-B uplift among wins and plot against per-category compliance AUC under both methodologies (Table~\ref{tab:per_cat_methodology}).
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Severity proxy (per-behavior)} & \textbf{$r$} & \textbf{$p$} & \textbf{$\rho$} & \textbf{$p$} \\
+\midrule
+Mean uplift among wins   & $+0.114$ & 0.27 & $+0.068$ & 0.51 \\
+Mean uplift across all 6 convs & $+0.045$ & 0.67 & $+0.003$ & 0.98 \\
+Max uplift in any conv   & $+0.050$ & 0.63 & $+0.037$ & 0.72 \\
+\midrule
+\textbf{Per-category, $n=10$:} & & & & \\
+Mean uplift among wins (within-cat probe AUC, $n=8$) & $+0.38$ & 0.35 & $+0.33$ & 0.42 \\
+Mean uplift among wins (pooled probe AUC, $n=10$)    & $+0.34$ & 0.34 & $+0.24$ & 0.51 \\
+\bottomrule
+\end{tabular}
+\caption{Compliance AUC vs operational uplift, three severity proxies $\times$ two probe methodologies. All correlations are small and \emph{positive}, opposite of the hypothesised anti-correlation. The hypothesis is not rescued by any reasonable severity definition.}
+\label{tab:falsified}
+\end{table}
+
+\paragraph{Interpretation.}
+The data is more consistent with the opposite model: higher-uplift categories (Malware, Privacy, Govt, Fraud) tend to have \emph{slightly higher} compliance AUC, not lower. A possible mechanism: those are exactly the categories the post-training stack has been heavily fine-tuned against, so the residual stream encodes denser refusal-relevant signal there. The compliance probe leverages that denser signal and gets higher AUC.
+
+\paragraph{Methodological caveat.}
+Within-category AUC requires enough wins to fit a probe; Physical harm ($0$ wins) and Sexual/Adult ($1$ win) drop out. Those are exactly the categories where the hypothesis would predict the cleanest ``low uplift $\to$ high AUC'' signal, so the test is structurally biased against finding the hypothesised effect under the within-category methodology. We therefore report both methodologies; both give the same direction.
+
+
+\section{Reproducibility}
+\label{sec:reproducibility}
+
+All code and data are in the project repository under \texttt{turnstile/}.
+
+\paragraph{Training the multi-turn DPO loop.}
+\texttt{turnstile/loop.py} (vLLM-batched variant: \texttt{turnstile/vllm\_loop.py}) with seed in \texttt{\{42,123,456\}}, $\beta=0.1$, $5\mathrm{e}{-5}$ learning rate. \texttt{run\_vllm\_4090.sh} is the all-in-one launcher. Per-round metrics in \texttt{experiments/<run>/metrics.jsonl}; raw judged conversations in \texttt{experiments/<run>/rounds/round\_*.jsonl}.
+
+\paragraph{Hidden-state extraction.}
+\texttt{turnstile/probe.py} extracts residual stream at layers $\{0,4,8,12,16,20,24,28,31\}$ for all five turns. Outputs to \texttt{experiments/pooled\_hs/<run>/round\_*.pt}.
+
+\paragraph{Probe training (intent + compliance + paired).}
+\texttt{turnstile/outcome\_probe.py}, \texttt{turnstile/compliance\_amp\_sweep.py}, \texttt{turnstile/intent\_rewrite.py}, \texttt{turnstile/intent\_judge\_translations.py}. 5-fold stratified CV; $L_2$ regularised logistic regression with grid-searched $C$.
+
+\paragraph{Stage-B uplift judging.}
+\texttt{working/uplift/select\_stage\_b.py} samples 600 conversations stratified per behavior; \texttt{working/uplift/run\_judge\_b.py} runs the Likert rubric against a vLLM-served Qwen2.5-72B-AWQ; \texttt{working/uplift/vast\_launch.py} provisions, runs, and tears down the vast.ai instance end-to-end (\texttt{STAGE=b python vast\_launch.py launch}). Raw scores in \texttt{working/uplift/stage\_b\_scores.jsonl}; analysis in \texttt{working/uplift/analyze\_stage\_b.py} and \texttt{working/uplift/scatter\_category.py}.
+
+\paragraph{Source experiments contributing to the pooled corpus.}
+See Section~\ref{sec:setup}. Each run's hidden states + judged conversations + DPO adapters are versioned under \texttt{experiments/<run>/}.
+
+\paragraph{Compute.}
+Multi-turn loops on a single RTX~4090. Hidden-state extraction on the same. Probes on CPU. Stage-B judge on a vast.ai A100~80~GB or RTX PRO~6000 ($\sim$\$0.80--1.00/hr); total cloud spend for the analyses in this paper $<$\$5.
+
+\paragraph{Determinism.}
+Adversary sampling temperature $1.0$, victim sampling temperature $0.7$. Judge calls at temperature $0$. Probe fits with fixed seed.
+
+
+\section{Related work}
+\label{sec:related}
+
+\paragraph{Disentangled safety / Knowing vs Acting.}
+\citet{wu2026knowingwithoutacting} propose the Disentangled Safety Hypothesis: safety recognition (``Knowing'') and safety execution (``Acting'') are structurally independent in deep layers. Our findings empirically instantiate this dissociation with explicit AUC bounds and document a phenomenon they would predict (intent decodable, compliance bounded). \citet{zhang2025jbshield} frame the same split via two concept-activation vectors (toxic vs jailbreak); \citet{jiao2026siren} build a single-side recognition guard from internal layers. The conceptual split is established; what we add is the side-by-side AUC measurement on a controlled multi-turn DPO corpus and the TF--IDF caveat showing that the recognition side is largely surface-text decoding.
+
+\paragraph{Refusal direction and safety probes.}
+\citet{arditi2024refusal} extract a single refusal direction by mean-difference; \citet{zou2023repe} introduce representation engineering; \citet{burns2023ccs} probe for truth via consistency; \citet{goldowsky2025deception} probe for strategic deception; \citet{kulkarni2026latent} extend to multi-turn attack-presence detection. Across this thread the standard reported quantity is harmful-vs-benign separation AUC; the standard absent control is a same-text linguistic baseline (Section~\ref{sec:intent}).
+
+\paragraph{Compliance-forecast probes.}
+\citet{kirch2024features} train probes on hidden states to predict jailbreak success across 35 attack methods and 10{,}800 attempts; this is the closest precedent for our compliance-forecast probe. They emphasise attack-family non-transfer rather than a population ceiling, and do not report a text-only baseline or an intent-vs-compliance side-by-side comparison. \citet{bailey2024obfuscated} show harmfulness probes can be driven to $0$\% recall by obfuscation attacks---an adversarial complement to our non-adversarial ceiling result.
+
+\paragraph{SAEs as safety features.}
+\citet{karvonen2025saes} find that SAEs do not beat raw linear probes on $100+$ datasets; our SAE-doesn't-help result for compliance forecasting (256--16k dims) replicates this in the safety-probing domain specifically. Steering with SAE refusal features is explored by \citet{obrien2024steering} and others, but these papers do not characterise a probe ceiling.
+
+\paragraph{Multi-turn internal characterization (concurrent).}
+\citet{bullwinkel2025multiturnrep}, by a Microsoft team that includes the original Crescendo authors, apply representation engineering to multi-turn jailbreaks on the same victim family (Llama-3-8B-Instruct and its circuit-breaker variant Llama-3-8B-Instruct-RR). They train an MLP classifier (test accuracy $0.997$ / $0.999$) on the circuit-breaker / retain dataset to label individual response tokens as harmful-vs-benign, then apply it to multi-turn Crescendo conversations. Their headline finding is that as the conversation grows, the fraction of the final response's tokens classified as ``harmful'' drops sharply (the largest drop is between $k{=}1$ and $k{=}2$ turns of context); the model's representation of the harmful output drifts toward the benign region. They probe layer~$31$ on the vanilla model and layer~$20$ on the circuit-breaker variant. They explicitly acknowledge as an open limitation that ``it is uncertain whether the MLP captures the model's internal notion of harmfulness or is an artifact of the training distribution.''
+
+The two studies are complementary along several precise axes:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Probe target}: they classify final-response \emph{tokens} for harmful-vs-benign character; we classify the conversation's \emph{hidden state} for whether it will be judged a successful jailbreak. Their probe is a harmfulness-perception classifier; ours is a compliance forecaster.
+  \item \textbf{Attacker}: scripted Crescendo (deterministic prompted attack template) vs.\ a DPO-trained learning attacker that updates on its own self-play rollouts.
+  \item \textbf{Layer}: they probe at the ``read-out'' layer ($31$ vanilla, $20$ circuit-breaker, where the safety decision manifests as logit-shift); we probe at $L_{16}$, the middle layer where the compliance decision is determined upstream of where it is read out (related causal-steering evidence in \citet{wu2026knowingwithoutacting}).
+  \item \textbf{Training distribution}: their probe is trained out-of-distribution (single-turn circuit-breaker dataset, applied to multi-turn Crescendo conversations) and their open question is whether the resulting signal is a representational property of the model or a residue of the training data; our probes are trained in-distribution (5-fold CV on the multi-turn corpus itself), and our text-only TF--IDF baseline (Section~\ref{sec:intent}) directly addresses their open question on a related task: at least for our intent probe, $\sim 91$\% of the apparent representational signal is recoverable from the user-message text, and only $\sim 9$~pp is in the residual stream above bag-of-words.
+  \item \textbf{Phenomenon coverage}: their finding (output-side representation drift across turns) and our findings (compliance forecast bounded at $0.75$, intent decoding mostly lexical) are pieces of the same multi-turn picture: the model's late-turn output representation drifts benign while early-turn dialogue-state representations only weakly distinguish which conversations will end in compliance.
+\end{itemize}
+
+We are not aware of overlap in the specific quantitative claims: their figure reports per-attack-objective ``fraction of tokens classified harmful'' across $k$, while we report compliance-forecast AUC, intent AUC, text-only baselines, and uplift-judge correlations.
+
+\paragraph{Multi-turn jailbreak attacks.}
+\citet{russinovich2025crescendo} (Crescendo, prompted/automated), \citet{pavlova2024goat} (GOAT, $97$\% ASR with a prompted agent toolbox), \citet{ren2024actorattack} (ActorAttack), \citet{rahman2025xteaming} (X-Teaming, four-agent $96$\% ASR). \citet{ge2024mart} (single-turn iterated rejection-sampling), \citet{samvelyan2024rainbow} (MAP-Elites), \citet{paulus2024advprompter} (alternating-SGD attacker), \citet{hong2024curiosity} (curiosity-driven RL attacker), \citet{perez2022redteaming} (foundational LM-as-attacker). To our knowledge none of these uses DPO on multi-turn attacker self-play rollouts against a frozen victim; the constrained setting is a deliberate choice for clean internal characterization, not a strength claim.
+
+\paragraph{LLM-as-judge for jailbreak success.}
+\citet{souly2024strongreject} introduce a 5-point specificity + convincingness rubric calibrated against humans; \citet{mazeika2024harmbench} train a distilled classifier from GPT-4; \citet{chao2024jailbreakbench} use Llama-Guard~$2$ + Llama-3-70B; \citet{liu2024jailjudge} build a multi-agent judge with $35$k training pairs; \citet{eiras2025knowthyjudge} document judge sensitivity to style perturbations; \citet{cao2025jades} show decompositional re-rating drops headline ASR substantially. Our Stage-B re-judging departs from this thread by scoring \emph{operational uplift over a Google-search baseline} rather than compliance/specificity, and is to our knowledge the first cross-judge uplift validation of a multi-turn DPO self-play corpus.
+
+\paragraph{Operational uplift evals.}
+\citet{patwardhan2024earlywarning} (OpenAI biothreat RCT), \citet{mouton2024rand} (RAND red-team trial), \citet{anthropic2025biorisk}: all measure uplift via human-task RCTs comparing LLM+internet vs internet-only. None re-rates an existing jailbreak corpus; the closest corpus-side analogue is StrongREJECT's specificity rubric, which is anchored on ``convincing/specific'' rather than ``would Google have given me this.''
+
+
+\section{Limitations}
+
+\paragraph{Single victim model.}
+All findings are on Llama-3.1-8B-Instruct. Whether the $0.75$ ceiling and the Knowing/Acting gap reproduce on other model families (Qwen, Mistral, Gemma) is open.
+
+\paragraph{Single judge family for the labels.}
+Labels are from Together-70B (Llama family). Stage-B re-judging uses Qwen-72B (different family) so confirms the labels track real uplift, but the underlying training signal during DPO is still Llama-judge-defined.
+
+\paragraph{Constrained attacker.}
+Our 3B DPO attacker reaches 18--32\% ASR; prompt-engineered baselines (GOAT, Crescendo) reach 80--97\%. The probe ceiling and intent-decoding caveat may not transfer to higher-ASR regimes where the model is being attacked from a much larger distribution of jailbreak strategies.
+
+\paragraph{Probe class.}
+We use logistic regression on raw residuals and on SAE features. Stronger probes (MLP, attention probes) might exceed 0.75; the ``ceiling'' claim is bounded by the probe class.
+
+
+\section{Conclusion}
+
+The two findings the alignment audience should take from this study are:
+
+(i)~A near-perfect intent AUC on residual-stream probes is mostly a measurement of surface text. Reporting a TF--IDF baseline on the same user messages should become standard practice when probing for safety-relevant signals, lest the field accumulate apparent ``mechanism'' that is bag-of-words.
+
+(ii)~Compliance prediction has a stable, replicable ceiling near $0.75$ on multi-turn jailbreaks against an 8B Llama victim, robust to data scale, training condition, feature space, and pooling strategy. The judge labels behind that ceiling reflect real operational uplift (validated by Qwen-72B re-judging on a 5-point Likert, $p=5\times 10^{-32}$). The compliance ceiling is the substantively informative quantity about the model's representational state during a jailbreak; the intent AUC is, on inspection, mostly text.
+
+These findings are an empirical instantiation of the Knowing/Acting dissociation \citep{wu2026knowingwithoutacting}; the controls and bounds we provide aim to make that dissociation operational rather than aspirational.
+
+
+\bibliography{references}
+% NOTE: this references.bib lives in the same directory as lw_post.tex
+% (working/references.bib). Keep it separate from paper/references.bib so
+% the post can ship independently.
+
+\end{document}

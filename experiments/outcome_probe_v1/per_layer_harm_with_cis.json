@@ -1,0 +1,89 @@
+{
+  "layers": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    31
+  ],
+  "harm_thresh": 4,
+  "n_boot": 500,
+  "per_layer": {
+    "L0": {
+      "harm_auc_wins_point": 0.48482404692082115,
+      "harm_auc_wins_lo95": 0.4206789843564141,
+      "harm_auc_wins_hi95": 0.5565759373291769,
+      "harm_auc_all_point": 0.4792213823585933,
+      "harm_auc_all_lo95": 0.4190349335044714,
+      "harm_auc_all_hi95": 0.5295374296111813
+    },
+    "L4": {
+      "harm_auc_wins_point": 0.6167644183773215,
+      "harm_auc_wins_lo95": 0.5532584391873375,
+      "harm_auc_wins_hi95": 0.6880446638810656,
+      "harm_auc_all_point": 0.5938761129972455,
+      "harm_auc_all_lo95": 0.531249976293632,
+      "harm_auc_all_hi95": 0.6563467340462135
+    },
+    "L8": {
+      "harm_auc_wins_point": 0.6149560117302053,
+      "harm_auc_wins_lo95": 0.5488153126086681,
+      "harm_auc_wins_hi95": 0.678107909223716,
+      "harm_auc_all_point": 0.5905771571327909,
+      "harm_auc_all_lo95": 0.5301281604776181,
+      "harm_auc_all_hi95": 0.6453291342930633
+    },
+    "L12": {
+      "harm_auc_wins_point": 0.6124144672531769,
+      "harm_auc_wins_lo95": 0.5477386262265833,
+      "harm_auc_wins_hi95": 0.678675520093851,
+      "harm_auc_all_point": 0.6078246108513228,
+      "harm_auc_all_lo95": 0.5500459456764767,
+      "harm_auc_all_hi95": 0.6557819561081901
+    },
+    "L16": {
+      "harm_auc_wins_point": 0.5635874877810362,
+      "harm_auc_wins_lo95": 0.5008930200151146,
+      "harm_auc_wins_hi95": 0.6236103556758246,
+      "harm_auc_all_point": 0.582201652680802,
+      "harm_auc_all_lo95": 0.5199934126770924,
+      "harm_auc_all_hi95": 0.6384230086179175
+    },
+    "L20": {
+      "harm_auc_wins_point": 0.5532746823069403,
+      "harm_auc_wins_lo95": 0.4818110083399876,
+      "harm_auc_wins_hi95": 0.6109813798921878,
+      "harm_auc_all_point": 0.5654346294279674,
+      "harm_auc_all_lo95": 0.5165054306788177,
+      "harm_auc_all_hi95": 0.6218130832634333
+    },
+    "L24": {
+      "harm_auc_wins_point": 0.5110948191593353,
+      "harm_auc_wins_lo95": 0.44053604727228357,
+      "harm_auc_wins_hi95": 0.5781552901715478,
+      "harm_auc_all_point": 0.5352956248798924,
+      "harm_auc_all_lo95": 0.4812294061464927,
+      "harm_auc_all_hi95": 0.5932155379680761
+    },
+    "L28": {
+      "harm_auc_wins_point": 0.5490224828934507,
+      "harm_auc_wins_lo95": 0.48284537669484723,
+      "harm_auc_wins_hi95": 0.6117503840245775,
+      "harm_auc_all_point": 0.5628723336109154,
+      "harm_auc_all_lo95": 0.5043404880432806,
+      "harm_auc_all_hi95": 0.6217109653477433
+    },
+    "L31": {
+      "harm_auc_wins_point": 0.48983382209188664,
+      "harm_auc_wins_lo95": 0.4162423410075222,
+      "harm_auc_wins_hi95": 0.5537688521486718,
+      "harm_auc_all_point": 0.5056530651463712,
+      "harm_auc_all_lo95": 0.4402193884286861,
+      "harm_auc_all_hi95": 0.5622322800699168
+    }
+  }
+}

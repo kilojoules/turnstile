@@ -1,0 +1,237 @@
+\begin{thebibliography}{34}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[{Anthropic}(2025)]{anthropic2025biorisk}
+{Anthropic}.
+\newblock Biorisk evaluations.
+\newblock \url{https://red.anthropic.com/2025/biorisk/}, 2025.
+
+\bibitem[Arditi et~al.(2024)Arditi, Obeso, Sygnowski, Paleka, Panickssery,
+  Gurnee, and Nanda]{arditi2024refusal}
+Andy Arditi, Oscar Obeso, Aaquib Sygnowski, Daniel Paleka, Nina Panickssery,
+  Wes Gurnee, and Neel Nanda.
+\newblock Refusal in language models is mediated by a single direction.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2024.
+\newblock arXiv:2406.11717.
+
+\bibitem[Bailey et~al.(2024)Bailey, Serrano, Sheshadri, Seleznyov, Taylor,
+  Jenner, Hilton, Casper, Guestrin, and Emmons]{bailey2024obfuscated}
+Luke Bailey, Alex Serrano, Abhay Sheshadri, Mikhail Seleznyov, Jordan Taylor,
+  Erik Jenner, Jacob Hilton, Stephen Casper, Carlos Guestrin, and Scott Emmons.
+\newblock Obfuscated activations bypass {LLM} latent-space defenses.
+\newblock \emph{arXiv preprint arXiv:2412.09565}, 2024.
+
+\bibitem[Bullwinkel et~al.(2025)Bullwinkel, Russinovich, Salem,
+  Zanella-Beguelin, Jones, Severi, Kim, Hines, Minnich, Zunger, and
+  Siva~Kumar]{bullwinkel2025multiturnrep}
+Blake Bullwinkel, Mark Russinovich, Ahmed Salem, Santiago Zanella-Beguelin,
+  Daniel Jones, Giorgio Severi, Eugenia Kim, Keegan Hines, Amanda Minnich,
+  Yonatan Zunger, and Ram~Shankar Siva~Kumar.
+\newblock A representation engineering perspective on the effectiveness of
+  multi-turn jailbreaks.
+\newblock \emph{arXiv preprint arXiv:2507.02956}, 2025.
+
+\bibitem[Burns et~al.(2023)Burns, Ye, Klein, and Steinhardt]{burns2023ccs}
+Collin Burns, Haotian Ye, Dan Klein, and Jacob Steinhardt.
+\newblock Discovering latent knowledge in language models without supervision.
+\newblock \emph{ICLR}, 2023.
+
+\bibitem[Cao(2025)]{cao2025jades}
+et~al. Cao.
+\newblock {JADES}: A universal framework for jailbreak assessment via
+  decompositional scoring.
+\newblock \emph{arXiv preprint arXiv:2508.20848}, 2025.
+
+\bibitem[Chao et~al.(2024)Chao, Debenedetti, Robey,
+  et~al.]{chao2024jailbreakbench}
+Patrick Chao, Edoardo Debenedetti, Alexander Robey, et~al.
+\newblock {JailbreakBench}: An open robustness benchmark for jailbreaking large
+  language models.
+\newblock In \emph{NeurIPS Datasets \& Benchmarks}, 2024.
+\newblock arXiv:2404.01318.
+
+\bibitem[Eiras et~al.(2025)Eiras, Zemour, Lin, and
+  Mugunthan]{eiras2025knowthyjudge}
+Francisco Eiras, Eliott Zemour, Eric Lin, and Vaikkunth Mugunthan.
+\newblock Know thy judge: On the robustness meta-evaluation of {LLM} safety
+  judges.
+\newblock In \emph{ICLR Workshop / PMLR 296:56-66}, 2025.
+\newblock arXiv:2503.04474.
+
+\bibitem[Ge et~al.(2024)]{ge2024mart}
+Suyu Ge et~al.
+\newblock {MART}: Improving {LLM} safety with multi-round automatic
+  red-teaming.
+\newblock In \emph{NAACL}, 2024.
+\newblock arXiv:2311.07689.
+
+\bibitem[Goldowsky-Dill et~al.(2025)]{goldowsky2025deception}
+Nicholas Goldowsky-Dill et~al.
+\newblock Detecting strategic deception using linear probes.
+\newblock \emph{arXiv preprint arXiv:2502.03407}, 2025.
+
+\bibitem[Hewitt and Liang(2019)]{hewitt2019control}
+John Hewitt and Percy Liang.
+\newblock Designing and interpreting probes with control tasks.
+\newblock In \emph{EMNLP}, 2019.
+\newblock arXiv:1909.03368.
+
+\bibitem[Hong et~al.(2024)Hong, Shenfeld, Kim, and Agrawal]{hong2024curiosity}
+Zhang-Wei Hong, Idan Shenfeld, Tsun-Hsuan Kim, and Pulkit Agrawal.
+\newblock Curiosity-driven red-teaming for large language models.
+\newblock \emph{arXiv preprint arXiv:2402.19464}, 2024.
+
+\bibitem[Jiao et~al.(2026)]{jiao2026siren}
+Junfeng Jiao et~al.
+\newblock {SIREN}: An internal-layer safety guard for large language models.
+\newblock \emph{arXiv preprint arXiv:2604.18519}, 2026.
+
+\bibitem[Karvonen et~al.(2025)Karvonen, Pizzimenti, Marks,
+  et~al.]{karvonen2025saes}
+Adam Karvonen, Diego Pizzimenti, Samuel Marks, et~al.
+\newblock Are sparse autoencoders useful? a case study in sparse probing.
+\newblock \emph{arXiv preprint arXiv:2502.16681}, 2025.
+
+\bibitem[Kirch et~al.(2024)Kirch, Weisser, Field, Yannakoudakis, and
+  Casper]{kirch2024features}
+Nathalie~Maria Kirch, Severin Weisser, Sergii Field, Helen Yannakoudakis, and
+  Stephen Casper.
+\newblock What features in prompts jailbreak {LLMs}? investigating the
+  mechanisms behind attacks.
+\newblock \emph{arXiv preprint arXiv:2411.03343}, 2024.
+
+\bibitem[Kulkarni(2026)]{kulkarni2026latent}
+T.~Kulkarni.
+\newblock Latent adversarial detection for multi-turn jailbreaks.
+\newblock \emph{arXiv preprint arXiv:2604.28129}, 2026.
+
+\bibitem[Liu et~al.(2024)]{liu2024jailjudge}
+Fan Liu et~al.
+\newblock {JAILJUDGE}: A comprehensive jailbreak judge benchmark with
+  multi-agent enhanced explanation evaluation framework.
+\newblock \emph{arXiv preprint arXiv:2410.12855}, 2024.
+
+\bibitem[Mazeika et~al.(2024)Mazeika, Phan, Yin, et~al.]{mazeika2024harmbench}
+Mantas Mazeika, Long Phan, Xuwang Yin, et~al.
+\newblock {HarmBench}: A standardized evaluation framework for automated red
+  teaming and robust refusal.
+\newblock In \emph{ICML}, 2024.
+\newblock arXiv:2402.04249.
+
+\bibitem[Mouton et~al.(2024)Mouton, Lucas, and Guest]{mouton2024rand}
+Christopher~A. Mouton, Caleb Lucas, and Ella Guest.
+\newblock The operational risks of {AI} in large-scale biological attacks:
+  Results of a red-team study.
+\newblock Technical report, RAND, RR-A2977-2, 2024.
+
+\bibitem[O'Brien et~al.(2024)]{obrien2024steering}
+Kyle O'Brien et~al.
+\newblock Steering language model refusal with sparse autoencoders.
+\newblock \emph{arXiv preprint arXiv:2411.11296}, 2024.
+
+\bibitem[Patwardhan et~al.(2024)]{patwardhan2024earlywarning}
+Tejal Patwardhan et~al.
+\newblock Building an early warning system for {LLM}-aided biological threat
+  creation.
+\newblock Technical report, OpenAI, 2024.
+
+\bibitem[Paulus et~al.(2025)Paulus, Zharmagambetov, Guo, Amos, and
+  Tian]{paulus2024advprompter}
+Anselm Paulus, Arman Zharmagambetov, Chuan Guo, Brandon Amos, and Yuandong
+  Tian.
+\newblock {AdvPrompter}: Fast adaptive adversarial prompting for {LLMs}.
+\newblock In \emph{ICML}, 2025.
+\newblock arXiv:2404.16873.
+
+\bibitem[Pavlova et~al.(2024)]{pavlova2024goat}
+Maya Pavlova et~al.
+\newblock Automated red teaming with {GOAT}: the generative offensive agent
+  tester.
+\newblock \emph{arXiv preprint arXiv:2410.01606}, 2024.
+
+\bibitem[Perez et~al.(2022)Perez, Huang, Song, Cai, Ring, Aslanides, Glaese,
+  McAleese, and Irving]{perez2022redteaming}
+Ethan Perez, Saffron Huang, Francis Song, Trevor Cai, Roman Ring, John
+  Aslanides, Amelia Glaese, Nat McAleese, and Geoffrey Irving.
+\newblock Red teaming language models with language models.
+\newblock In \emph{EMNLP}, 2022.
+\newblock arXiv:2202.03286.
+
+\bibitem[Qian et~al.(2024)]{qian2024hsf}
+Cheng Qian et~al.
+\newblock {HSF}: Defending against jailbreak attacks with hidden state
+  filtering.
+\newblock \emph{arXiv preprint arXiv:2409.03788}, 2024.
+
+\bibitem[Rafailov et~al.(2023)Rafailov, Sharma, Mitchell, Ermon, Manning, and
+  Finn]{rafailov2023dpo}
+Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher~D.
+  Manning, and Chelsea Finn.
+\newblock Direct preference optimization: Your language model is secretly a
+  reward model.
+\newblock In \emph{NeurIPS}, 2023.
+\newblock arXiv:2305.18290.
+
+\bibitem[Rahman et~al.(2025)]{rahman2025xteaming}
+Salman Rahman et~al.
+\newblock {X-Teaming}: A multi-agent framework for multi-turn adaptive
+  jailbreaks.
+\newblock \emph{arXiv preprint arXiv:2504.13203}, 2025.
+
+\bibitem[Ren et~al.(2024)]{ren2024actorattack}
+Qibing Ren et~al.
+\newblock Derail yourself: Multi-turn {LLM} jailbreak attack through
+  self-discovered clues.
+\newblock \emph{arXiv preprint arXiv:2410.10700}, 2024.
+
+\bibitem[Russinovich et~al.(2025)Russinovich, Salem, and
+  Eldan]{russinovich2025crescendo}
+Mark Russinovich, Ahmed Salem, and Ronen Eldan.
+\newblock Great, now write an article about that: The crescendo multi-turn
+  {LLM} jailbreak attack.
+\newblock In \emph{USENIX Security Symposium}, 2025.
+\newblock arXiv:2404.01833.
+
+\bibitem[Samvelyan et~al.(2024)Samvelyan, Bhatt, Foerster, Hambro, Jiang, Lupu,
+  Mao, Markosyan, Parker-Holder, Raileanu, Rockt{\"a}schel, and
+  Raparthy]{samvelyan2024rainbow}
+Mikayel Samvelyan, Manish Bhatt, Jakob Foerster, Eric Hambro, Minqi Jiang,
+  Andrei Lupu, Yuning Mao, Aram Markosyan, Jack Parker-Holder, Roberta
+  Raileanu, Tim Rockt{\"a}schel, and Sharath Raparthy.
+\newblock Rainbow teaming: Open-ended generation of diverse adversarial
+  prompts.
+\newblock In \emph{NeurIPS}, 2024.
+\newblock arXiv:2402.16822.
+
+\bibitem[Souly et~al.(2024)Souly, Lu, Bowen, et~al.]{souly2024strongreject}
+Alexandra Souly, Qingyuan Lu, Dillon Bowen, et~al.
+\newblock A {StrongREJECT} for empty jailbreaks.
+\newblock In \emph{NeurIPS}, 2024.
+\newblock arXiv:2402.10260.
+
+\bibitem[Wu et~al.(2026)Wu, Xie, Lin, Zhao, and
+  Chen]{wu2026knowingwithoutacting}
+Jinman Wu, Yi~Xie, Shen Lin, Shiqian Zhao, and Xiaofeng Chen.
+\newblock Knowing without acting: The disentangled geometry of safety
+  mechanisms in large language models.
+\newblock \emph{arXiv preprint arXiv:2603.05773}, 2026.
+
+\bibitem[Zhang et~al.(2025)]{zhang2025jbshield}
+Yu~Zhang et~al.
+\newblock {JBShield}: Defending large language models from jailbreak attacks
+  through activated concept analysis and manipulation.
+\newblock In \emph{USENIX Security Symposium}, 2025.
+\newblock arXiv:2502.07557.
+
+\bibitem[Zou et~al.(2023)Zou, Phan, Chen, Campbell, Guo, Ren, Pan, Yin,
+  Mazeika, Dombrowski, et~al.]{zou2023repe}
+Andy Zou, Long Phan, Sarah Chen, James Campbell, Phillip Guo, Richard Ren,
+  Alexander Pan, Xuwang Yin, Mantas Mazeika, Ann-Kathrin Dombrowski, et~al.
+\newblock Representation engineering: A top-down approach to {AI} transparency.
+\newblock In \emph{arXiv preprint arXiv:2310.01405}, 2023.
+
+\end{thebibliography}

@@ -1,0 +1,11 @@
+{
+  "eigenvalues": [
+    0.5521344250430609,
+    0.47023490693822245,
+    0.3398766702572323,
+    0.22287322873810114
+  ],
+  "n_sampled": 400,
+  "extraction": "pre_response_last_prompt_token",
+  "layer": 16
+}

@@ -1,0 +1,151 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\bibstyle{plainnat}
+\citation{arditi2024refusal,zhang2025jbshield,jiao2026siren,qian2024hsf,goldowsky2025deception}
+\citation{hewitt2019control}
+\citation{karvonen2025saes}
+\citation{kirch2024features}
+\citation{souly2024strongreject}
+\citation{wu2026knowingwithoutacting}
+\citation{bullwinkel2025multiturnrep}
+\citation{rafailov2023dpo}
+\citation{chao2024jailbreakbench}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Setup}{1}{section.1}\protected@file@percent }
+\newlabel{sec:setup}{{1}{1}{Setup}{section.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Models.}{1}{section*.1}\protected@file@percent }
+\citation{arditi2024refusal,zou2023repe,zhang2025jbshield,jiao2026siren,qian2024hsf,kulkarni2026latent,goldowsky2025deception}
+\@writefile{toc}{\contentsline {paragraph}{Goal corpus.}{2}{section*.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Multi-turn DPO self-play loop.}{2}{section*.3}\protected@file@percent }
+\newlabel{para:judge_caveat}{{1}{2}{Dual-judge ``stack'' is effectively single-judge}{section*.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Dual-judge ``stack'' is effectively single-judge.}{2}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Pooled corpus for probing.}{2}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Intent decoding is mostly bag-of-words}{2}{section.2}\protected@file@percent }
+\newlabel{sec:intent}{{2}{2}{Intent decoding is mostly bag-of-words}{section.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Probe.}{2}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Critical control: text-only baselines on the same messages.}{2}{section*.7}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces The residual stream beats TF--IDF by only $\sim 9$~pp on the same user messages, and message length alone gets to $0.72$. Most of what an L16 ``intent probe'' decodes is the surface form of the current user turn, not an abstract internal representation.}}{2}{table.caption.8}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:intent_baselines}{{1}{2}{The residual stream beats TF--IDF by only $\sim 9$~pp on the same user messages, and message length alone gets to $0.72$. Most of what an L16 ``intent probe'' decodes is the surface form of the current user turn, not an abstract internal representation}{table.caption.8}{}}
+\citation{arditi2024refusal,zou2023repe,zhang2025jbshield,jiao2026siren,qian2024hsf,goldowsky2025deception,kulkarni2026latent}
+\citation{hewitt2019control}
+\citation{bullwinkel2025multiturnrep}
+\citation{bailey2024obfuscated}
+\@writefile{toc}{\contentsline {paragraph}{Why this control matters.}{3}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Within-conversation paired contrast.}{3}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Compliance prediction has a hard ceiling near 0.75}{3}{section.3}\protected@file@percent }
+\newlabel{sec:compliance}{{3}{3}{Compliance prediction has a hard ceiling near 0.75}{section.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Probe.}{3}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Headline number.}{3}{section*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The ceiling is stable.}{3}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Per-category structure depends on probe methodology.}{4}{section*.14}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Per-category compliance probe AUC under two methodologies. \emph  {Within-category}: train and 5-fold-CV-test inside one category at a time, no cross-category transfer. Wide spread (0.43--0.85). Physical harm ($0/22$ wins) and Sexual/Adult ($1/40$ wins) drop out for lack of within-category positives. \emph  {Pooled}: train one global probe on 9{,}400 conversations, evaluate per-category test folds. Compressed (0.63--0.75). The pooled probe inherits global compliance signal that masks per-category nulls. The within-category measurement is the cleaner test of category-specific representational content.}}{4}{table.caption.15}\protected@file@percent }
+\newlabel{tab:per_cat_methodology}{{2}{4}{Per-category compliance probe AUC under two methodologies. \emph {Within-category}: train and 5-fold-CV-test inside one category at a time, no cross-category transfer. Wide spread (0.43--0.85). Physical harm ($0/22$ wins) and Sexual/Adult ($1/40$ wins) drop out for lack of within-category positives. \emph {Pooled}: train one global probe on 9{,}400 conversations, evaluate per-category test folds. Compressed (0.63--0.75). The pooled probe inherits global compliance signal that masks per-category nulls. The within-category measurement is the cleaner test of category-specific representational content}{table.caption.15}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Validation: are the labels real?}{4}{section.4}\protected@file@percent }
+\newlabel{sec:validation}{{4}{4}{Validation: are the labels real?}{section.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Stage~B re-judging.}{4}{section*.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Result.}{4}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Conclusion.}{4}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}A tempting hypothesis that falsified}{5}{section.5}\protected@file@percent }
+\newlabel{sec:falsified}{{5}{5}{A tempting hypothesis that falsified}{section.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Hypothesis.}{5}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Test.}{5}{section*.20}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Compliance AUC vs operational uplift, three severity proxies $\times $ two probe methodologies. All correlations are small and \emph  {positive}, opposite of the hypothesised anti-correlation. The hypothesis is not rescued by any reasonable severity definition.}}{5}{table.caption.21}\protected@file@percent }
+\newlabel{tab:falsified}{{3}{5}{Compliance AUC vs operational uplift, three severity proxies $\times $ two probe methodologies. All correlations are small and \emph {positive}, opposite of the hypothesised anti-correlation. The hypothesis is not rescued by any reasonable severity definition}{table.caption.21}{}}
+\@writefile{toc}{\contentsline {paragraph}{Interpretation.}{5}{section*.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Methodological caveat.}{5}{section*.23}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Reproducibility}{5}{section.6}\protected@file@percent }
+\newlabel{sec:reproducibility}{{6}{5}{Reproducibility}{section.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Training the multi-turn DPO loop.}{5}{section*.24}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Hidden-state extraction.}{5}{section*.25}\protected@file@percent }
+\citation{wu2026knowingwithoutacting}
+\citation{zhang2025jbshield}
+\citation{jiao2026siren}
+\citation{arditi2024refusal}
+\citation{zou2023repe}
+\citation{burns2023ccs}
+\citation{goldowsky2025deception}
+\citation{kulkarni2026latent}
+\citation{kirch2024features}
+\citation{bailey2024obfuscated}
+\citation{karvonen2025saes}
+\citation{obrien2024steering}
+\@writefile{toc}{\contentsline {paragraph}{Probe training (intent + compliance + paired).}{6}{section*.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Stage-B uplift judging.}{6}{section*.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Source experiments contributing to the pooled corpus.}{6}{section*.28}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Compute.}{6}{section*.29}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Determinism.}{6}{section*.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related work}{6}{section.7}\protected@file@percent }
+\newlabel{sec:related}{{7}{6}{Related work}{section.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{Disentangled safety / Knowing vs Acting.}{6}{section*.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Refusal direction and safety probes.}{6}{section*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Compliance-forecast probes.}{6}{section*.33}\protected@file@percent }
+\citation{bullwinkel2025multiturnrep}
+\citation{wu2026knowingwithoutacting}
+\citation{russinovich2025crescendo}
+\citation{pavlova2024goat}
+\citation{ren2024actorattack}
+\citation{rahman2025xteaming}
+\citation{ge2024mart}
+\citation{samvelyan2024rainbow}
+\citation{paulus2024advprompter}
+\citation{hong2024curiosity}
+\citation{perez2022redteaming}
+\@writefile{toc}{\contentsline {paragraph}{SAEs as safety features.}{7}{section*.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Multi-turn internal characterization (concurrent).}{7}{section*.35}\protected@file@percent }
+\citation{souly2024strongreject}
+\citation{mazeika2024harmbench}
+\citation{chao2024jailbreakbench}
+\citation{liu2024jailjudge}
+\citation{eiras2025knowthyjudge}
+\citation{cao2025jades}
+\citation{patwardhan2024earlywarning}
+\citation{mouton2024rand}
+\citation{anthropic2025biorisk}
+\@writefile{toc}{\contentsline {paragraph}{Multi-turn jailbreak attacks.}{8}{section*.36}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{LLM-as-judge for jailbreak success.}{8}{section*.37}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Operational uplift evals.}{8}{section*.38}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Limitations}{8}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Single victim model.}{8}{section*.39}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Single judge family for the labels.}{8}{section*.40}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Constrained attacker.}{8}{section*.41}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Probe class.}{8}{section*.42}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}Conclusion}{8}{section.9}\protected@file@percent }
+\citation{wu2026knowingwithoutacting}
+\bibdata{references}
+\bibcite{anthropic2025biorisk}{{1}{2025}{{Anthropic}}{{}}}
+\bibcite{arditi2024refusal}{{2}{2024}{{Arditi et~al.}}{{Arditi, Obeso, Sygnowski, Paleka, Panickssery, Gurnee, and Nanda}}}
+\bibcite{bailey2024obfuscated}{{3}{2024}{{Bailey et~al.}}{{Bailey, Serrano, Sheshadri, Seleznyov, Taylor, Jenner, Hilton, Casper, Guestrin, and Emmons}}}
+\bibcite{bullwinkel2025multiturnrep}{{4}{2025}{{Bullwinkel et~al.}}{{Bullwinkel, Russinovich, Salem, Zanella-Beguelin, Jones, Severi, Kim, Hines, Minnich, Zunger, and Siva~Kumar}}}
+\bibcite{burns2023ccs}{{5}{2023}{{Burns et~al.}}{{Burns, Ye, Klein, and Steinhardt}}}
+\bibcite{cao2025jades}{{6}{2025}{{Cao}}{{}}}
+\bibcite{chao2024jailbreakbench}{{7}{2024}{{Chao et~al.}}{{Chao, Debenedetti, Robey, et~al.}}}
+\bibcite{eiras2025knowthyjudge}{{8}{2025}{{Eiras et~al.}}{{Eiras, Zemour, Lin, and Mugunthan}}}
+\bibcite{ge2024mart}{{9}{2024}{{Ge et~al.}}{{}}}
+\bibcite{goldowsky2025deception}{{10}{2025}{{Goldowsky-Dill et~al.}}{{}}}
+\bibcite{hewitt2019control}{{11}{2019}{{Hewitt and Liang}}{{}}}
+\bibcite{hong2024curiosity}{{12}{2024}{{Hong et~al.}}{{Hong, Shenfeld, Kim, and Agrawal}}}
+\bibcite{jiao2026siren}{{13}{2026}{{Jiao et~al.}}{{}}}
+\bibcite{karvonen2025saes}{{14}{2025}{{Karvonen et~al.}}{{Karvonen, Pizzimenti, Marks, et~al.}}}
+\bibcite{kirch2024features}{{15}{2024}{{Kirch et~al.}}{{Kirch, Weisser, Field, Yannakoudakis, and Casper}}}
+\bibcite{kulkarni2026latent}{{16}{2026}{{Kulkarni}}{{}}}
+\bibcite{liu2024jailjudge}{{17}{2024}{{Liu et~al.}}{{}}}
+\bibcite{mazeika2024harmbench}{{18}{2024}{{Mazeika et~al.}}{{Mazeika, Phan, Yin, et~al.}}}
+\bibcite{mouton2024rand}{{19}{2024}{{Mouton et~al.}}{{Mouton, Lucas, and Guest}}}
+\bibcite{obrien2024steering}{{20}{2024}{{O'Brien et~al.}}{{}}}
+\bibcite{patwardhan2024earlywarning}{{21}{2024}{{Patwardhan et~al.}}{{}}}
+\bibcite{paulus2024advprompter}{{22}{2025}{{Paulus et~al.}}{{Paulus, Zharmagambetov, Guo, Amos, and Tian}}}
+\bibcite{pavlova2024goat}{{23}{2024}{{Pavlova et~al.}}{{}}}
+\bibcite{perez2022redteaming}{{24}{2022}{{Perez et~al.}}{{Perez, Huang, Song, Cai, Ring, Aslanides, Glaese, McAleese, and Irving}}}
+\bibcite{qian2024hsf}{{25}{2024}{{Qian et~al.}}{{}}}
+\bibcite{rafailov2023dpo}{{26}{2023}{{Rafailov et~al.}}{{Rafailov, Sharma, Mitchell, Ermon, Manning, and Finn}}}
+\bibcite{rahman2025xteaming}{{27}{2025}{{Rahman et~al.}}{{}}}
+\bibcite{ren2024actorattack}{{28}{2024}{{Ren et~al.}}{{}}}
+\bibcite{russinovich2025crescendo}{{29}{2025}{{Russinovich et~al.}}{{Russinovich, Salem, and Eldan}}}
+\bibcite{samvelyan2024rainbow}{{30}{2024}{{Samvelyan et~al.}}{{Samvelyan, Bhatt, Foerster, Hambro, Jiang, Lupu, Mao, Markosyan, Parker-Holder, Raileanu, Rockt{\"a}schel, and Raparthy}}}
+\bibcite{souly2024strongreject}{{31}{2024}{{Souly et~al.}}{{Souly, Lu, Bowen, et~al.}}}
+\bibcite{wu2026knowingwithoutacting}{{32}{2026}{{Wu et~al.}}{{Wu, Xie, Lin, Zhao, and Chen}}}
+\bibcite{zhang2025jbshield}{{33}{2025}{{Zhang et~al.}}{{}}}
+\bibcite{zou2023repe}{{34}{2023}{{Zou et~al.}}{{Zou, Phan, Chen, Campbell, Guo, Ren, Pan, Yin, Mazeika, Dombrowski, et~al.}}}
+\gdef \@abspage@last{11}

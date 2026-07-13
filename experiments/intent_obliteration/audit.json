@@ -1,0 +1,40 @@
+{
+  "rounds_checked": 168,
+  "hidden_dim_values": [
+    4096
+  ],
+  "violations": {
+    "label_mismatch": [],
+    "tob_mismatch": [],
+    "count_mismatch": [],
+    "shape_mismatch": [],
+    "mtime": [],
+    "round_field": []
+  },
+  "cross_round_byte_identical_first_turn": {
+    "n_duplicate_pairs": 254,
+    "n_total_pairs": 14028,
+    "first_5_dups": [
+      {
+        "a": "control_hard_s456/r0",
+        "b": "stealth_hard_s456/r0"
+      },
+      {
+        "a": "control_s42/r2",
+        "b": "control_s42/r4"
+      },
+      {
+        "a": "control_s42/r2",
+        "b": "control_s42/r5"
+      },
+      {
+        "a": "control_s42/r2",
+        "b": "control_s42/r6"
+      },
+      {
+        "a": "control_s42/r2",
+        "b": "control_s42/r7"
+      }
+    ]
+  }
+}

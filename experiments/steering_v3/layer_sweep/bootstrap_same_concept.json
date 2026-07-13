@@ -1,0 +1,302 @@
+{
+  "n_iters": 500,
+  "per_cell": [
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 0,
+      "observed": 0.9961279630661011,
+      "boot_mean": 0.9924804195165634,
+      "ci_low": 0.9852787718176842,
+      "ci_high": 0.9965175554156304,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 0,
+      "observed": 0.9999861717224121,
+      "boot_mean": 0.9924242382049561,
+      "ci_low": 0.9848619222640991,
+      "ci_high": 0.9961646422743797,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 0,
+      "observed": 0.36506953835487366,
+      "boot_mean": 0.3736943638920784,
+      "ci_low": 0.35851296707987784,
+      "ci_high": 0.3970881350338459,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 4,
+      "observed": 0.8999729156494141,
+      "boot_mean": 0.880476401925087,
+      "ci_low": 0.8441320583224297,
+      "ci_high": 0.9094151422381401,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 4,
+      "observed": 0.8751363754272461,
+      "boot_mean": 0.8674202444553375,
+      "ci_low": 0.820572116971016,
+      "ci_high": 0.9024116933345794,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 4,
+      "observed": 0.24275606870651245,
+      "boot_mean": 0.2584210513532162,
+      "ci_low": 0.23080285266041756,
+      "ci_high": 0.2939873985946178,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 8,
+      "observed": 0.8542969226837158,
+      "boot_mean": 0.844217360496521,
+      "ci_low": 0.8103813663125038,
+      "ci_high": 0.8764808177947998,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 8,
+      "observed": 0.8271960020065308,
+      "boot_mean": 0.8237336983680725,
+      "ci_low": 0.7672521382570267,
+      "ci_high": 0.863503186404705,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 8,
+      "observed": 0.2028600573539734,
+      "boot_mean": 0.21460766178369522,
+      "ci_low": 0.1925200492143631,
+      "ci_high": 0.2386935345828533,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 12,
+      "observed": 0.8518995046615601,
+      "boot_mean": 0.8366067038774491,
+      "ci_low": 0.7953048437833786,
+      "ci_high": 0.8673645824193954,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 12,
+      "observed": 0.8182129859924316,
+      "boot_mean": 0.8157604990005494,
+      "ci_low": 0.7582525864243508,
+      "ci_high": 0.858404991030693,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 12,
+      "observed": 0.18943828344345093,
+      "boot_mean": 0.200594133913517,
+      "ci_low": 0.17876940928399562,
+      "ci_high": 0.22573948726058005,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 16,
+      "observed": 0.8151524066925049,
+      "boot_mean": 0.8158016052246094,
+      "ci_low": 0.7755647152662277,
+      "ci_high": 0.8518530249595642,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 16,
+      "observed": 0.7932474613189697,
+      "boot_mean": 0.7973630598783493,
+      "ci_low": 0.746067364513874,
+      "ci_high": 0.8405873760581016,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 16,
+      "observed": 0.15800175070762634,
+      "boot_mean": 0.1722767759859562,
+      "ci_low": 0.15743837729096413,
+      "ci_high": 0.18951731994748117,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 20,
+      "observed": 0.7952468395233154,
+      "boot_mean": 0.7972325624227524,
+      "ci_low": 0.7569068893790245,
+      "ci_high": 0.8347522988915443,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 20,
+      "observed": 0.776343584060669,
+      "boot_mean": 0.783094386935234,
+      "ci_low": 0.7372028738260269,
+      "ci_high": 0.8294028967618943,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 20,
+      "observed": 0.13460882008075714,
+      "boot_mean": 0.1505308526456356,
+      "ci_low": 0.13627949468791484,
+      "ci_high": 0.16556938961148263,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 24,
+      "observed": 0.7485973834991455,
+      "boot_mean": 0.7638011050224304,
+      "ci_low": 0.7197811767458916,
+      "ci_high": 0.8063497632741928,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 24,
+      "observed": 0.7448985576629639,
+      "boot_mean": 0.7611094039678573,
+      "ci_low": 0.7109970971941948,
+      "ci_high": 0.8070812031626701,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 24,
+      "observed": 0.11954668164253235,
+      "boot_mean": 0.13565223111212255,
+      "ci_low": 0.1237446179613471,
+      "ci_high": 0.15025992579758166,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 28,
+      "observed": 0.748315155506134,
+      "boot_mean": 0.7619159405231476,
+      "ci_low": 0.7086551651358605,
+      "ci_high": 0.8088229149580001,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 28,
+      "observed": 0.7488646507263184,
+      "boot_mean": 0.7585011559724808,
+      "ci_low": 0.7049408107995987,
+      "ci_high": 0.8088009506464003,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 28,
+      "observed": 0.10958744585514069,
+      "boot_mean": 0.12537709426879884,
+      "ci_low": 0.11394450049847364,
+      "ci_high": 0.13930438682436944,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    },
+    {
+      "concept": "harm",
+      "judge": "qwen",
+      "layer": 31,
+      "observed": 0.7616356611251831,
+      "boot_mean": 0.7733393890857696,
+      "ci_low": 0.7228609040379524,
+      "ci_high": 0.8191415101289748,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "harm",
+      "judge": "llama",
+      "layer": 31,
+      "observed": 0.7579389214515686,
+      "boot_mean": 0.7670718296766281,
+      "ci_low": 0.7061002790927887,
+      "ci_high": 0.8178632825613021,
+      "n_eff": 500,
+      "ci_excludes_0.5": true
+    },
+    {
+      "concept": "comp",
+      "judge": "llama",
+      "layer": 31,
+      "observed": 0.10525358468294144,
+      "boot_mean": 0.12197126576304436,
+      "ci_low": 0.11022589299827815,
+      "ci_high": 0.1357091661542654,
+      "n_eff": 500,
+      "ci_excludes_0.5": false
+    }
+  ]
+}

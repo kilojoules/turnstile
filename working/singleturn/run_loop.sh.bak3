@@ -1,0 +1,108 @@
+#!/bin/bash
+# Runs on the vast instance. Brings up victim + judge vLLM servers, then runs
+# the single-turn DPO loop. Expects:
+#   /workspace/turnstile_pkg.tar.gz   (turnstile/ package + pixi.toml)
+#   $HF_TOKEN env var set
+# Writes progress to /workspace/run.log and touches /workspace/DONE when finished.
+set -x
+exec > /workspace/run.log 2>&1
+echo "=== run_loop.sh start $(date -u) ==="
+
+# The vllm/vllm-openai image ships python3 but not `python`; many call sites
+# (including turnstile/vllm_loop.py's subprocess.Popen) hardcode `python`.
+PY3="$(command -v python3 || echo /usr/bin/python3)"
+ln -sf "$PY3" /usr/local/bin/python 2>/dev/null || true
+hash -r 2>/dev/null || true
+echo "python -> $(command -v python) ($("$PY3" --version 2>&1))"
+which pip pip3 2>/dev/null
+PIP="$(command -v pip3 || command -v pip)"
+
+VICTIM=meta-llama/Llama-3.1-8B-Instruct
+ATTACKER=meta-llama/Llama-3.2-3B-Instruct
+JUDGE=hugging-quants/Meta-Llama-3.3-70B-Instruct-AWQ-INT4
+JUDGE_FALLBACK=casperhansen/llama-3.3-70b-instruct-awq
+EXP=singleturn_hardened_v1
+
+cd /workspace
+mkdir -p /workspace/turnstile_src && cd /workspace/turnstile_src
+tar xzf /workspace/turnstile_pkg.tar.gz
+export PYTHONPATH=/workspace/turnstile_src:$PYTHONPATH
+# vllm_loop.py hardcodes a log path at /workspace/turnstile/adv_server.log
+mkdir -p /workspace/turnstile
+
+# --- extra python deps not in vllm-openai image ---
+"$PIP" install -q --no-cache-dir peft jailbreakbench openai 2>&1 | tail -3 || true
+
+# --- HF auth ---
+python -c "from huggingface_hub import login; login(token='${HF_TOKEN}')" || echo "hf login fallback"
+echo "dummy" > /root/.together
+
+# --- start victim vLLM (port 8000) ---
+# Single-turn convs are short; cap ctx + concurrency so KV cache fits.
+echo "=== starting victim vLLM $(date -u) ==="
+nohup python -m vllm.entrypoints.openai.api_server \
+  --model "$VICTIM" --port 8000 \
+  --gpu-memory-utilization 0.26 --max-model-len 1536 --max-num-seqs 64 \
+  --dtype bfloat16 --enforce-eager \
+  --download-dir /workspace/hf_cache \
+  > /workspace/victim.log 2>&1 &
+
+# --- start judge vLLM (port 8002, 70B AWQ) ---
+echo "=== starting judge vLLM $(date -u) ==="
+nohup python -m vllm.entrypoints.openai.api_server \
+  --model "$JUDGE" --port 8002 --served-model-name local-judge \
+  --gpu-memory-utilization 0.45 --max-model-len 2048 --max-num-seqs 16 \
+  --quantization awq_marlin --enforce-eager \
+  --download-dir /workspace/hf_cache \
+  > /workspace/judge.log 2>&1 &
+JUDGE_PID=$!
+
+# --- wait for both servers ---
+echo "=== waiting for servers $(date -u) ==="
+for i in $(seq 1 80); do
+  V=$(curl -fs http://localhost:8000/health >/dev/null 2>&1 && echo ok)
+  J=$(curl -fs http://localhost:8002/v1/models 2>/dev/null | grep -c local-judge || echo 0)
+  echo "[$i] victim=$V judge_models=$J  $(date -u +%H:%M:%S)"
+  if [ "$V" = "ok" ] && [ "$J" -ge 1 ]; then echo "both servers up"; break; fi
+  # If the judge died on the primary repo name, retry with fallback
+  if ! kill -0 $JUDGE_PID 2>/dev/null; then
+    echo "judge server died; retrying with fallback repo $JUDGE_FALLBACK"
+    nohup python -m vllm.entrypoints.openai.api_server \
+      --model "$JUDGE_FALLBACK" --port 8002 --served-model-name local-judge \
+      --gpu-memory-utilization 0.45 --max-model-len 2048 --max-num-seqs 16 \
+      --quantization awq_marlin --enforce-eager \
+      --download-dir /workspace/hf_cache \
+      > /workspace/judge.log 2>&1 &
+    JUDGE_PID=$!
+  fi
+  sleep 30
+done
+
+if ! curl -fs http://localhost:8000/health >/dev/null 2>&1; then echo "VICTIM NEVER CAME UP"; touch /workspace/DONE; exit 1; fi
+if ! curl -fs http://localhost:8002/v1/models 2>/dev/null | grep -q local-judge; then echo "JUDGE NEVER CAME UP"; touch /workspace/DONE; exit 1; fi
+
+# --- sanity: one judge call ---
+curl -s http://localhost:8002/v1/chat/completions -H 'Content-Type: application/json' \
+  -d '{"model":"local-judge","messages":[{"role":"user","content":"Say the word: ok"}],"max_tokens":5,"temperature":0}' | head -c 300
+echo
+
+# --- run the single-turn DPO loop, cold start ---
+echo "=== starting loop $(date -u) ==="
+export TURNSTILE_JUDGE_BASE_URL=http://localhost:8002/v1
+export TURNSTILE_JUDGE_MODEL=local-judge
+cd /workspace/turnstile_src
+python -u -m turnstile.vllm_loop \
+  --name "$EXP" \
+  --adversary-model "$ATTACKER" \
+  --num-turns 1 \
+  --rounds 5 \
+  --candidates 200 \
+  --together-key dummy \
+  --no-hidden-states \
+  --adv-gpu-util 0.16 \
+  --lora-iters 50 \
+  --seed 42 2>&1 | tee /workspace/loop.log
+
+echo "=== loop done $(date -u) ==="
+cp -r /workspace/turnstile_src/experiments/$EXP /workspace/exp_out 2>/dev/null || true
+touch /workspace/DONE

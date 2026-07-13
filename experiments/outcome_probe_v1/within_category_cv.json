@@ -1,0 +1,74 @@
+{
+  "turn": 0,
+  "layer_note": "hidden states as cached in experiments/frozen_v1/hidden_states/ (L16 per outcome_probe.py pipeline)",
+  "n_splits_requested": 5,
+  "seed": 42,
+  "per_category": {
+    "Disinformation": {
+      "auc_mean": 0.8516666666666666,
+      "auc_std": 0.1402775027500054,
+      "n_folds_used": 5,
+      "n": 33,
+      "n_pos": 11,
+      "n_neg": 22
+    },
+    "Economic harm": {
+      "auc_mean": 0.42666666666666664,
+      "auc_std": 0.23701851779508237,
+      "n_folds_used": 5,
+      "n": 36,
+      "n_pos": 11,
+      "n_neg": 25
+    },
+    "Expert advice": {
+      "auc_mean": 0.44722222222222224,
+      "auc_std": 0.15224655117827468,
+      "n_folds_used": 5,
+      "n": 31,
+      "n_pos": 19,
+      "n_neg": 12
+    },
+    "Fraud/Deception": {
+      "auc_mean": 0.4600000000000001,
+      "auc_std": 0.14966629547095764,
+      "n_folds_used": 5,
+      "n": 35,
+      "n_pos": 9,
+      "n_neg": 26
+    },
+    "Government decision-making": {
+      "auc_mean": 0.7,
+      "auc_std": 0.18708286933869706,
+      "n_folds_used": 5,
+      "n": 26,
+      "n_pos": 6,
+      "n_neg": 20
+    },
+    "Harassment/Discrimination": {
+      "auc_mean": 0.44000000000000006,
+      "auc_std": 0.37336309405188944,
+      "n_folds_used": 5,
+      "n": 27,
+      "n_pos": 5,
+      "n_neg": 22
+    },
+    "Malware/Hacking": {
+      "auc_mean": 0.6833333333333333,
+      "auc_std": 0.1855921454276674,
+      "n_folds_used": 5,
+      "n": 25,
+      "n_pos": 9,
+      "n_neg": 16
+    },
+    "Privacy": {
+      "auc_mean": 0.7833333333333334,
+      "auc_std": 0.2449489742783178,
+      "n_folds_used": 5,
+      "n": 25,
+      "n_pos": 8,
+      "n_neg": 17
+    }
+  },
+  "macro_mean": 0.5990277777777778,
+  "macro_std": 0.16296840137179663
+}

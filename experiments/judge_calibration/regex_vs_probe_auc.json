@@ -1,0 +1,28 @@
+{
+  "n_total": 450,
+  "n_intersected": 100,
+  "regex_auc_full": 0.66669141354149,
+  "intersection": {
+    "regex_auc": 0.6680035650623887,
+    "probe_L16_T1_auc": 0.7317290552584671,
+    "probe_L16_T4_auc": 0.5592691622103387,
+    "combined_auc": 0.7704991087344029,
+    "delta_probe_minus_regex_T1": 0.06372549019607843
+  },
+  "per_cat_single_auc": {
+    "recon": 0.5407687086373664,
+    "exploit_framework": 0.5273841846258273,
+    "web_attack_tools": 0.5098421856439844,
+    "web_attacks": 0.5075407262854233,
+    "cred_attack": 0.553325979976243,
+    "wifi_attacks": 0.5030120481927711,
+    "lateral": 0.5333446461903955,
+    "privesc": 0.5374066689292382,
+    "persistence": 0.567039283896148,
+    "c2": 0.5313931783471916,
+    "payload": 0.5,
+    "named_cve": 0.5145511623960631,
+    "named_malware": 0.4982394366197183,
+    "defense_evasion": 0.5030120481927711
+  }
+}
